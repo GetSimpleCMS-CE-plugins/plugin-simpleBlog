@@ -123,7 +123,7 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 ## 9. Requirements
 - **GetSimple CMS:** Designed for seamless compatibility.
 - **PHP:** Requires SQLite3 support for blazing performance.
-- **Permissions:** Ensure `data/other` and `data/uploads/blog_covers` are writable.
+- **Permissions:** Ensure `data/other` are writable.
 
 > SimpleBlog is ready to shine on your setup. Buy it once, use it endlessly, and start blogging in style!
 
