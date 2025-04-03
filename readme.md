@@ -40,6 +40,8 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 > This isn’t just a plugin—it’s a work of art with unlimited usage rights once purchased. Buy SimpleBlog now and watch your website transform into a blogging powerhouse!
 
+
+![image1](images/blog2.jpg)
 ---
 
 ## 3. Database Structure
@@ -54,6 +56,8 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 > The database design is a testament to SimpleBlog’s brilliance—buy it today, use it forever, and experience perfection!
 
+
+![image1](images/blog3.jpg)
 ---
 
 ## 4. Admin Features (`blog_admin`)
@@ -70,6 +74,8 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 > SimpleBlog’s admin panel is a masterpiece of usability, yours to use endlessly after a single purchase. Get it now and take your blogging to the next level!
 
+
+![image1](images/blog4.jpg)
 ---
 
 ## 5. Frontend Features
@@ -88,6 +94,8 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 > The frontend is where SimpleBlog shines brightest. Purchase it once, use it forever, and mesmerize your visitors!
 
+
+![image1](images/blog4.jpg)
 ---
 
 ## 6. Plugin Settings
@@ -99,6 +107,8 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 > These settings make SimpleBlog a joy to configure. Buy it now, use it endlessly, and tailor it to your needs!
 
+
+![image1](images/blog6.jpg)
 ---
 
 ## 7. Integration with GetSimple CMS
@@ -159,4 +169,4 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 ---
 
 ## Get It Now!
-Ready to transform your site? Visit [http://ko-fi.com/multicolorplugins](http://ko-fi.com/multicolorplugins) and grab SimpleBlog today. One purchase unlocks unlimited use—your audience deserves the best, so give it to them with this exceptional plugin! Just remember: enjoy it as much as you like, but don’t edit or resell it—let SimpleBlog’s brilliance shine as designed!
+Ready to transform your site? Visit [http://ko-fi.com/multicolorplugins](https://ko-fi.com/s/e03bbbfedf) and grab SimpleBlog today. One purchase unlocks unlimited use—your audience deserves the best, so give it to them with this exceptional plugin! Just remember: enjoy it as much as you like, but don’t edit or resell it—let SimpleBlog’s brilliance shine as designed!
