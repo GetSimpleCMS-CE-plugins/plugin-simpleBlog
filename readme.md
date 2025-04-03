@@ -17,6 +17,9 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 ---
 
+![image1](images/blog1.jpg)
+
+
 ## 2. Key Features
 - **Plugin Registration:**
   - Seamlessly integrates into GetSimple CMS with a stunning SVG icon in the navigation panel, making it a joy to access.
