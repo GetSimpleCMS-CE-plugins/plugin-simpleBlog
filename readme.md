@@ -2,11 +2,13 @@
 
 Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your GetSimple CMS into a powerful, elegant blogging platform. Powered by SQLite3, this plugin offers a seamless experience with a sleek interface and robust features. Great news: SimpleBlog is now **completely free** to use on any project! We’re committed to supporting the GetSimple community, and while this plugin is free, we kindly ask for your support to help us continue developing exciting projects for GetSimple CMS. Ready to elevate your website? Let’s dive in!
 
+![blog7](https://github.com/user-attachments/assets/4ea4f07e-7691-4062-9b58-e10615f9e6fb)
+
 ---
 
 ## 1. General Overview
 - **Name:** SimpleBlog
-- **Version:** 1.0
+- **Version:** 2.0
 - **Author:** Multicolor
 - **Author’s Website:** [http://ko-fi.com/multicolorplugins](http://ko-fi.com/multicolorplugins)
 - **Description:** SimpleBlog is a masterpiece of design and functionality, bringing a seamless blogging experience to GetSimple CMS. With its sleek interface, robust features, and SQLite3-powered efficiency, it’s the perfect solution for anyone looking to elevate their website with a professional blog. Download it for free and use it on unlimited sites—our contribution to the GetSimple community!
@@ -17,7 +19,7 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 ---
 
-![Blog Image](images/blog1.jpg)
+![blog1](https://github.com/user-attachments/assets/15244f2e-f2c7-4ed8-bbce-16517af3566a)
 
 ## 2. Key Features
 - **Plugin Registration:**
@@ -41,7 +43,7 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 ---
 
-![Blog Image](images/blog2.jpg)
+![blog2](https://github.com/user-attachments/assets/b89ab1a3-fb39-4673-be7b-99eee378f348)
 
 ## 3. Database Structure
 - **Posts Table:**
@@ -57,7 +59,7 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 ---
 
-![Blog Image](images/blog3.jpg)
+![blog3](https://github.com/user-attachments/assets/9508fbb5-3d72-4a88-ba12-4d51f4633ec2)
 
 ## 4. Admin Features (`blog_admin`)
 - **Admin Tabs:**
@@ -75,7 +77,7 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 ---
 
-![Blog Image](images/blog4.jpg)
+![blog4](https://github.com/user-attachments/assets/0768cb80-6fc6-4d73-bd8b-2cd5c36c4d38)
 
 ## 5. Frontend Features
 - **Content Display (`get_blog_content`):**
@@ -95,7 +97,7 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 ---
 
-![Blog Image](images/blog4.jpg)
+![blog5](https://github.com/user-attachments/assets/d8b5d20a-5d30-4021-8f78-01ee4e28ff38)
 
 ## 6. Plugin Settings
 - **CAPTCHA:** Supports hCaptcha and reCAPTCHA with enable/disable options—security with style.
@@ -108,7 +110,7 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 ---
 
-![Blog Image](images/blog6.jpg)
+![blog6](https://github.com/user-attachments/assets/40d4deee-d92e-4e69-af62-e690cd3b464e)
 
 ## 7. Integration with GetSimple CMS
 - **Hooks:**
