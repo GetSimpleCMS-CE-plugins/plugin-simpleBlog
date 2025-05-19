@@ -1,0 +1,91 @@
+.blogcontent {
+    margin: 30px 0;
+}
+
+.comform {
+    background: #fafafa;
+    padding: 10px;
+    margin-bottom: 50px;
+
+}
+
+.comform input,
+textarea {
+    width: 100%;
+    padding: 10px;
+    border: solid 1px #ddd;
+    margin-top: 5px;
+}
+
+.comform input[type="submit"] {
+    background: #000;
+    color: #fff;
+    max-width: 250px;
+}
+
+.comitem {
+    margin: 20px 0;
+    padding: 20px;
+    border-bottom: solid 5px #000;
+    box-shadow: rgba(149, 157, 165, 0.2) 0px 8px 24px;
+}
+
+.blogitem {
+display: inline-flex;
+padding: 20px;
+   margin-bottom: 20px;
+    box-shadow: rgba(149, 157, 165, 0.2) 0px 8px 24px;
+    min-height: 400px;
+    flex-direction: column;
+    width:30%;
+}
+
+.blogitem a:hover{
+    text-decoration: none;
+}
+
+.tags{
+    opacity: 0.8;
+    font-size: 0.9rem;
+}
+
+.blogitem.withcover {
+    padding: 0;
+    display: inline-flex;
+ 
+   margin-left:1%;
+    gap: 20px;
+   
+}
+
+@media(max-width:968px) {
+    .blogitem {
+        display: flex;
+        flex-direction: column;
+    }
+
+
+    .blogitem.withcover {
+        display: flex;
+        flex-direction: column;
+    }
+
+}
+
+.blogcover {
+    width: 100%;
+    height: 200px;
+    object-fit: cover;
+    margin: 0 !important;
+    padding: 0;
+    transition: all 250ms;
+}
+
+.blogcover:hover {
+    filter: brightness(80%);
+}
+
+.blogitem-content {
+    width:100%;
+    padding: 10px;
+}

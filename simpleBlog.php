@@ -8,7 +8,7 @@ i18n_merge('simpleBlog') || i18n_merge('simpleBlog', 'en_US');
 register_plugin(
     $thisfile,
     'SimpleBlog',
-    '1.1',
+    '2.0',
     'Multicolor',
     'http://ko-fi.com/multicolorplugins',
     'SimpleBlog for Simple CMS! Based on Sqlite3',
@@ -27,14 +27,40 @@ add_action('blog-sidebar', 'createSideMenu', array($thisfile, i18n_r('simpleBlog
 add_action('blog-sidebar', 'createSideMenu', array($thisfile, i18n_r('simpleBlog/SNIPPET'), '?id=simpleBlog&blog_admin&tab=snippet'));
 
 add_action('index-pretemplate', 'blog_theme_content');
+add_action('theme-header', 'styleTheme');
 
 
-register_style('simpleBlog', $SITEURL . 'plugins/simpleBlog/css/style.css?v=54', GSVERSION, 'screen');
-queue_style('simpleBlog', GSFRONT);
+
+
+
+function styleTheme()
+{
+    $db_file = GSDATAOTHERPATH . 'blog.db';
+
+
+    if (file_exists($db_file)) {
+
+
+        $db = new SQLite3(GSDATAOTHERPATH . 'blog.db');
+        $checkStyle = $db->prepare("SELECT * FROM settings WHERE name = 'style_theme'");
+        $result = $checkStyle->execute();
+        $style = $result->fetchArray(SQLITE3_ASSOC);
+
+
+        global $SITEURL;
+        echo '<link rel="stylesheet" href="' . $SITEURL . 'plugins/simpleBlog/css/' . $style['value'] . '.css?v=' . rand() . '">';
+
+
+    }
+    ;
+}
+
 
 
 function blog_init_db()
 {
+
+
     $db_file = GSDATAOTHERPATH . 'blog.db';
     if (!file_exists($db_file)) {
         $db = new SQLite3($db_file);
@@ -52,6 +78,9 @@ function blog_init_db()
             description TEXT,
             FOREIGN KEY (category_id) REFERENCES categories(id)
         )");
+
+        //new metadata
+
 
         $db->exec("CREATE TABLE categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,36 +119,71 @@ function blog_init_db()
         )");
 
         $db->close();
+    } else {
+        $db = new SQLite3($db_file);
+        @$db->exec("ALTER TABLE posts ADD COLUMN description TEXT");
+        @$db->exec("ALTER TABLE posts ADD COLUMN metadata TEXT");
+        $db->close();
     }
 
     $cover_folder = GSDATAUPLOADPATH . 'blog_covers/';
     if (!file_exists($cover_folder)) {
+
         mkdir($cover_folder, 0755, true);
+
+
     }
 }
-
 function generate_slug($title, $db, $table = 'posts', $exclude_id = null)
 {
     // Map of special characters to their base equivalents
     $char_map = [
-        'ą' => 'a', 'ć' => 'c', 'ę' => 'e', 'ł' => 'l', 'ń' => 'n',
+        // Polish characters
+        'ą' => 'a', 'ć' => 'c', 'ę' => 'e', 'ł' => 'l', 'ń' => 'n', 
         'ó' => 'o', 'ś' => 's', 'ź' => 'z', 'ż' => 'z',
-        'Ą' => 'A', 'Ć' => 'C', 'Ę' => 'E', 'Ł' => 'L', 'Ń' => 'N',
-        'Ó' => 'O', 'Ś' => 'S', 'Ź' => 'Z', 'Ż' => 'Z'
+        'Ą' => 'A', 'Ć' => 'C', 'Ę' => 'E', 'Ł' => 'L', 'Ń' => 'N', 
+        'Ó' => 'O', 'Ś' => 'S', 'Ź' => 'Z', 'Ż' => 'Z',
+        // German characters
+        'ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'ß' => 'ss',
+        'Ä' => 'Ae', 'Ö' => 'Oe', 'Ü' => 'Ue',
+        // Spanish characters
+        'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
+        'ñ' => 'n', 'ü' => 'u', // ü in Spanish (less common)
+        'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U',
+        'Ñ' => 'N', 'Ü' => 'U',
+        // Russian Cyrillic characters
+        'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd',
+        'е' => 'e', 'ё' => 'yo', 'ж' => 'zh', 'з' => 'z', 'и' => 'i',
+        'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n',
+        'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't',
+        'у' => 'u', 'ф' => 'f', 'х' => 'kh', 'ц' => 'ts', 'ч' => 'ch',
+        'ш' => 'sh', 'щ' => 'sch', 'ъ' => '', 'ы' => 'y', 'ь' => '',
+        'э' => 'e', 'ю' => 'yu', 'я' => 'ya',
+        'А' => 'A', 'Б' => 'B', 'В' => 'V', 'Г' => 'G', 'Д' => 'D',
+        'Е' => 'E', 'Ё' => 'Yo', 'Ж' => 'Zh', 'З' => 'Z', 'И' => 'I',
+        'Й' => 'Y', 'К' => 'K', 'Л' => 'L', 'М' => 'M', 'Н' => 'N',
+        'О' => 'O', 'П' => 'P', 'Р' => 'R', 'С' => 'S', 'Т' => 'T',
+        'У' => 'U', 'Ф' => 'F', 'Х' => 'Kh', 'Ц' => 'Ts', 'Ч' => 'Ch',
+        'Ш' => 'Sh', 'Щ' => 'Sch', 'Ъ' => '', 'Ы' => 'Y', 'Ь' => '',
+        'Э' => 'E', 'Ю' => 'Yu', 'Я' => 'Ya',
+    // Ukrainian Cyrillic characters
+          'ґ' => 'g', 'і' => 'i', 'ї' => 'yi', 'є' => 'ye',
+        'Ґ' => 'G', 'І' => 'I', 'Ї' => 'Yi', 'Є' => 'Ye'
     ];
-    
+
     // Replace special characters with their base equivalents
     $slug = strtr($title, $char_map);
-    
+
     // Convert to lowercase and remove all special characters except spaces
     $slug = strtolower(preg_replace('/[^A-Za-z0-9\s]/', '', $slug));
-    
-    // Replace spaces with hyphens and remove multiple consecutive hyphens
+
+    // Replace spaces with hyphens, remove multiple consecutive hyphens
     $slug = preg_replace('/\s+/', '-', trim($slug));
-    
+    $slug = preg_replace('/-+/', '-', $slug);
+
     $base_slug = $slug;
     $counter = 1;
-    
+
     while (true) {
         $stmt = $db->prepare("SELECT COUNT(*) FROM $table WHERE slug = ? AND id != ?");
         $stmt->bindValue(1, $slug, SQLITE3_TEXT);
@@ -131,7 +195,7 @@ function generate_slug($title, $db, $table = 'posts', $exclude_id = null)
         $slug = $base_slug . '-' . $counter;
         $counter++;
     }
-    
+
     return $slug;
 }
 
@@ -275,7 +339,7 @@ function get_categoryList()
 function get_newPostList($number)
 {
     $db = new SQLite3(GSDATAOTHERPATH . 'blog.db');
-    $stmt = $db->prepare("SELECT * FROM posts LIMIT :number");
+    $stmt = $stmt = $db->prepare("SELECT * FROM posts ORDER BY date DESC LIMIT :number");
     $stmt->bindValue(':number', $number, SQLITE3_INTEGER);
     $result = $stmt->execute();
     global $SITEURL;
@@ -301,7 +365,7 @@ function get_newPostList($number)
 function get_newPostListWithDesc($number)
 {
     $db = new SQLite3(GSDATAOTHERPATH . 'blog.db');
-    $stmt = $db->prepare("SELECT * FROM posts LIMIT :number");
+    $stmt = $stmt = $db->prepare("SELECT * FROM posts ORDER BY date DESC LIMIT :number");
     $stmt->bindValue(':number', $number, SQLITE3_INTEGER);
     $result = $stmt->execute();
     global $SITEURL;
@@ -330,7 +394,7 @@ function get_newPostListWithDesc($number)
 function get_newPostListFull($number)
 {
     $db = new SQLite3(GSDATAOTHERPATH . 'blog.db');
-    $stmt = $db->prepare("SELECT * FROM posts LIMIT :number");
+    $stmt = $stmt = $db->prepare("SELECT * FROM posts ORDER BY date DESC LIMIT :number");
     $stmt->bindValue(':number', $number, SQLITE3_INTEGER);
     $result = $stmt->execute();
     global $SITEURL;
@@ -495,12 +559,12 @@ color:rgba(0,0,0,0.5    ) !important;
                 $published = $_POST['published'];
                 $scheduled_date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : null;
                 $description = $_POST['description'];
-                $metadane = $_POST['metadane'];
+                $metadata = $_POST['metadane'];
 
                 $cover_photo = $_POST['cover_photo'];
 
 
-                $stmt = $db->prepare("INSERT INTO posts (title, slug, content, category_id, cover_photo, date, published, scheduled_date, description,metadane) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?)");
+                $stmt = $db->prepare("INSERT INTO posts (title, slug, content, category_id, cover_photo, date, published, scheduled_date, description ,metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?)");
                 $stmt->bindValue(1, $title, SQLITE3_TEXT);
                 $stmt->bindValue(2, $slug, SQLITE3_TEXT);
                 $stmt->bindValue(3, $content, SQLITE3_TEXT);
@@ -510,7 +574,7 @@ color:rgba(0,0,0,0.5    ) !important;
                 $stmt->bindValue(7, $published, SQLITE3_INTEGER);
                 $stmt->bindValue(8, $scheduled_date, $scheduled_date ? SQLITE3_INTEGER : SQLITE3_NULL);
                 $stmt->bindValue(9, $description, SQLITE3_TEXT);
-                $stmt->bindValue(10, $metadane, SQLITE3_TEXT);
+                $stmt->bindValue(10, $metadata, SQLITE3_TEXT);
                 $stmt->execute();
                 $post_id = $db->lastInsertRowID();
 
@@ -542,62 +606,108 @@ color:rgba(0,0,0,0.5    ) !important;
                 break;
 
             case 'edit_post':
-                $post_id = $_POST['post_id'];
-                $title = $_POST['title'];
-                $slug = generate_slug($title, $db, 'posts', $post_id);
-                $content = $_POST['content'];
-                $category_id = $_POST['category_id'];
-                $tags = isset($_POST['tags']) ? explode(',', $_POST['tags']) : [];
-                $published = $_POST['published'];
+                // Validate and sanitize inputs
+                $post_id = filter_input(INPUT_POST, 'post_id', FILTER_VALIDATE_INT);
+                $title = filter_input(INPUT_POST, 'title', FILTER_UNSAFE_RAW);
+                $content = $_POST['content'] ?? null;
+                $category_id = filter_input(INPUT_POST, 'category_id', FILTER_VALIDATE_INT);
+                $published = filter_input(INPUT_POST, 'published', FILTER_VALIDATE_INT);
+                $description = filter_input(INPUT_POST, 'description', FILTER_UNSAFE_RAW);
+                $metadata = filter_input(INPUT_POST, 'metadane', FILTER_UNSAFE_RAW); // Changed to metadata, verify DB schema
+                $cover_photo = !empty($_POST['cover_photo']) ? filter_var($_POST['cover_photo'], FILTER_UNSAFE_RAW) : null;
                 $scheduled_date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : null;
+                if ($scheduled_date === false) {
+                    $scheduled_date = null; // Handle invalid date
+                }
+                $tags = isset($_POST['tags']) ? array_map('trim', explode(',', filter_var($_POST['tags'], FILTER_UNSAFE_RAW))) : [];
 
+                // Check for required fields
+                if (!$post_id || !$title || !$content || !$category_id) {
+                    die('<div class="notification error">Required fields are missing.</div>');
+                }
+
+                // Get existing cover photo if none provided
                 $stmt = $db->prepare("SELECT cover_photo FROM posts WHERE id = ?");
+                if (!$stmt) {
+                    die('<div class="notification error">Failed to prepare statement: ' . $db->lastErrorMsg() . '</div>');
+                }
                 $stmt->bindValue(1, $post_id, SQLITE3_INTEGER);
                 $existing_post = $stmt->execute()->fetchArray();
-                $cover_photo = $_POST['cover_photo'];
-                $description = $_POST['description'];
-                $metadane = $_POST['metadane'];
+                $cover_photo = $cover_photo ?: ($existing_post['cover_photo'] ?? null);
 
+                // Generate slug
+                $slug = generate_slug($title, $db, 'posts', $post_id);
 
+                // Start transaction
+                $db->exec('BEGIN TRANSACTION');
+                try {
+                    // Update post
+                    $stmt = $db->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, category_id = ?, cover_photo = ?, published = ?, scheduled_date = ?, description = ?, metadata = ? WHERE id = ?");
+                    if (!$stmt) {
+                        throw new Exception('Failed to prepare UPDATE statement: ' . $db->lastErrorMsg());
+                    }
+                    $stmt->bindValue(1, $title, SQLITE3_TEXT);
+                    $stmt->bindValue(2, $slug, SQLITE3_TEXT);
+                    $stmt->bindValue(3, $content, SQLITE3_TEXT);
+                    $stmt->bindValue(4, $category_id, SQLITE3_INTEGER);
+                    $stmt->bindValue(5, $cover_photo, SQLITE3_TEXT);
+                    $stmt->bindValue(6, $published, SQLITE3_INTEGER);
+                    $stmt->bindValue(7, $scheduled_date, $scheduled_date ? SQLITE3_INTEGER : SQLITE3_NULL);
+                    $stmt->bindValue(8, $description, SQLITE3_TEXT);
+                    $stmt->bindValue(9, $metadata, SQLITE3_TEXT); // Changed to metadata, verify DB schema
+                    $stmt->bindValue(10, $post_id, SQLITE3_INTEGER);
+                    $stmt->execute();
 
-                $stmt = $db->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, category_id = ?, cover_photo = ?, published = ?, scheduled_date = ?, description = ?,metadane = ? WHERE id = ?");
-                $stmt->bindValue(1, $title, SQLITE3_TEXT);
-                $stmt->bindValue(2, $slug, SQLITE3_TEXT);
-                $stmt->bindValue(3, $content, SQLITE3_TEXT);
-                $stmt->bindValue(4, $category_id, SQLITE3_INTEGER);
-                $stmt->bindValue(5, $cover_photo, SQLITE3_TEXT);
-                $stmt->bindValue(6, $published, SQLITE3_INTEGER);
-                $stmt->bindValue(7, $scheduled_date, $scheduled_date ? SQLITE3_INTEGER : SQLITE3_NULL);
-                $stmt->bindValue(8, $description, SQLITE3_TEXT); // Poprawiona kolejność
-                $stmt->bindValue(9, $post_id, SQLITE3_INTEGER);  // Poprawiona kolejność
-                $stmt->bindValue(10, $metadane, SQLITE3_INTEGER);  // Poprawiona kolejność
-                $stmt->execute();
+                    // Delete existing tags
+                    $stmt = $db->prepare("DELETE FROM post_tags WHERE post_id = ?");
+                    if (!$stmt) {
+                        throw new Exception('Failed to prepare DELETE statement: ' . $db->lastErrorMsg());
+                    }
+                    $stmt->bindValue(1, $post_id, SQLITE3_INTEGER);
+                    $stmt->execute();
 
-                $stmt = $db->prepare("DELETE FROM post_tags WHERE post_id = ?");
-                $stmt->bindValue(1, $post_id, SQLITE3_INTEGER);
-                $stmt->execute();
-
-                foreach ($tags as $tag) {
-                    $tag = trim($tag);
-                    if (!empty($tag)) {
+                    // Insert new tags
+                    foreach ($tags as $tag) {
+                        if (empty($tag) || strlen($tag) > 50) { // Skip empty or overly long tags
+                            continue;
+                        }
                         $tag_slug = generate_slug($tag, $db, 'tags');
                         $stmt = $db->prepare("INSERT OR IGNORE INTO tags (name, slug) VALUES (?, ?)");
+                        if (!$stmt) {
+                            throw new Exception('Failed to prepare INSERT tags statement: ' . $db->lastErrorMsg());
+                        }
                         $stmt->bindValue(1, $tag, SQLITE3_TEXT);
                         $stmt->bindValue(2, $tag_slug, SQLITE3_TEXT);
                         $stmt->execute();
 
                         $stmt = $db->prepare("SELECT id FROM tags WHERE slug = ?");
+                        if (!$stmt) {
+                            throw new Exception('Failed to prepare SELECT tags statement: ' . $db->lastErrorMsg());
+                        }
                         $stmt->bindValue(1, $tag_slug, SQLITE3_TEXT);
-                        $tag_id = $stmt->execute()->fetchArray()['id'];
-
-                        $stmt = $db->prepare("INSERT OR IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)");
-                        $stmt->bindValue(1, $post_id, SQLITE3_INTEGER);
-                        $stmt->bindValue(2, $tag_id, SQLITE3_INTEGER);
-                        $stmt->execute();
+                        $result = $stmt->execute()->fetchArray();
+                        if ($result && isset($result['id'])) {
+                            $tag_id = $result['id'];
+                            $stmt = $db->prepare("INSERT OR IGNORE INTO post_tags (post_id, tag_id) VALUES (?, ?)");
+                            if (!$stmt) {
+                                throw new Exception('Failed to prepare INSERT post_tags statement: ' . $db->lastErrorMsg());
+                            }
+                            $stmt->bindValue(1, $post_id, SQLITE3_INTEGER);
+                            $stmt->bindValue(2, $tag_id, SQLITE3_INTEGER);
+                            $stmt->execute();
+                        }
                     }
+
+                    // Commit transaction
+                    $db->exec('COMMIT');
+                    get_sitemap();
+                    $notification = function_exists('i18n_r') ? i18n_r('simpleBlog/POST_UPDATED') : 'Post updated successfully.';
+                    echo '<div class="notification">' . htmlspecialchars($notification) . '</div>';
+                } catch (Exception $e) {
+                    // Rollback on error
+                    $db->exec('ROLLBACK');
+                    echo '<div class="notification error">Error updating post: ' . htmlspecialchars($e->getMessage()) . '</div>';
                 }
-                get_sitemap();
-                echo '<div class="notification">' . i18n_r('simpleBlog/POST_UPDATED') . '</div>';
                 break;
 
             case 'delete_post':
@@ -699,6 +809,10 @@ color:rgba(0,0,0,0.5    ) !important;
                 $stmt->bindValue(1, $_POST['show_comments'] ?? 0, SQLITE3_TEXT);
                 $stmt->execute();
 
+                $stmt = $db->prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('style_theme', ?)");
+                $stmt->bindValue(1, $_POST['style_theme'] ?? 0, SQLITE3_TEXT);
+                $stmt->execute();
+
                 get_sitemap();
                 echo '<div class="notification">' . i18n_r('simpleBlog/SETTINGS_SAVED') . '</div>';
                 break;
@@ -760,6 +874,21 @@ color:rgba(0,0,0,0.5    ) !important;
             echo '<label><input type="checkbox" name="use_slug_routing" value="1" ' . (get_setting($db, 'use_slug_routing') === '1' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/USE_SLUG_ROUTING') . '</label><br>';
             echo '<label><input type="checkbox" name="show_comments" value="1" ' . (get_setting($db, 'show_comments') === '1' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/SHOW_COMMENTS') . '</label><br>';
 
+            echo '<label>Style</label><select name="style_theme">';
+
+            foreach (glob(GSPLUGINPATH . 'simpleBlog/css/*.css') as $file) {
+
+                echo '<option value="' . pathinfo($file)['filename'] . '" ' . (get_setting($db, 'style_theme') === pathinfo($file)['filename'] ? 'selected' : '') . '>' . pathinfo($file)['filename'] . '</option>';
+
+            }
+
+            echo '</select>';
+
+
+
+
+
+
             echo '<label>' . i18n_r('simpleBlog/POSTS_PER_PAGE') . ':</label><input type="number" style="width:100%;padding:10px;border:solid 1px #ddd;border-radius:5px;margin-bottom:10px;" name="posts_per_page" value="' . htmlspecialchars(get_setting($db, 'posts_per_page') ?: 10) . '" min="1" required><br>';
 
             echo '<label>' . i18n_r('simpleBlog/PARENT_PAGE') . '<select class="root_page" name="root_page">';
@@ -785,14 +914,31 @@ color:rgba(0,0,0,0.5    ) !important;
             echo '<button  style="background: #0073aa;color:#fff;padding:10px;margin:5px 0"  onclick="copyToClipboard()">Copy to Clipboard</button>';
             if (get_setting($db, 'root_page') && get_setting($db, 'use_slug_routing')) {
 
-                echo '<div style="background:#fafafa;border:solid 1px #ddd;padding:10px;line-height:1.3; ">';
+                echo "
+                <br>
+                <b>In .htaccess, find the <span class='tpl'>following lines</span>, usually near 69-71 and paste the <span class='cke'>routing code </span>after that</b>
+                <div class='tpl' style='background:lightgrey;padding:10px;line-height:1.3'>
+				[...]<br>  
+				# Usually RewriteBase is just '/', but <br>
+				# replace it with your subdirectory path <br>
+				RewriteBase / or /subfolder/
+
+   
+    </div>
+                ";
+
+                echo '<div class="cke" style="background:#fafafa;border:solid 1px #ddd;padding:10px;line-height:1.3; ">';
                 echo '#For Post<br>
                  RewriteRule ^' . get_setting($db, 'root_page') . '/([A-Za-z0-9-]+)/?$ index.php?id=' . get_setting($db, 'root_page') . '&post=$1 [L]';
                 echo '<br>#For Category<br>';
                 echo 'RewriteRule ^' . get_setting($db, 'root_page') . '/category/([A-Za-z0-9-]+)/?$ index.php?id=' . get_setting($db, 'root_page') . '&category=$1 [L]</div>';
 
 
-                echo '<p>' . i18n_r('simpleBlog/SLUG_ROUTING_STEPS') . '</p>';
+                echo '<p>
+
+	
+                
+                ' . i18n_r('simpleBlog/SLUG_ROUTING_STEPS') . '</p>';
                 echo '</div>';
 
                 echo '<script>
@@ -809,7 +955,7 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
     textarea.select();
     document.execCommand("copy");
     document.body.removeChild(textarea);
-    alert("Kod został skopiowany do schowka!");
+    alert("Routing Code has been copied to clipboard!");
 }
 </script>';
 
@@ -909,7 +1055,7 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
             echo '<br>';
 
             echo '<label>' . i18n_r('simpleBlog/DESCRIPTION') . ':</label><textarea name="description"  style="height:150px"></textarea><br>';
-            echo '<label>Metadata (SEO):</label><textarea name="metadane"  style="height:150px"></textarea><br>';
+            echo '<label>Metadesc (SEO):</label><textarea name="metadane"  style="height:150px"></textarea><br>';
             echo '<label>' . i18n_r('simpleBlog/CONTENT') . ':</label><textarea id="post-content" name="content" required rows="10"></textarea><br>';
             echo '<label>' . i18n_r('simpleBlog/STATUS') . ':</label><select name="published" required>';
             echo '<option value="1">' . i18n_r('simpleBlog/PUBLISHED') . '</option>';
@@ -1053,7 +1199,7 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
                     echo '</select><br>';
 
                     echo '<label  style="display:none">' . i18n_r('simpleBlog/TAGS') . ':</label><input type="hidden" name="tags" value="' . htmlspecialchars($tags_str) . '"><br>';
-                    echo '<label>' . i18n_r('simpleBlog/COVER_PHOTO') . ':</label> <input type="text" name="cover_photo" value="' . htmlspecialchars($post['cover_photo']) . '" class="cover_photo">
+                    echo '<label>' . i18n_r('simpleBlog/COVER_PHOTO') . ':</label> <input type="text" name="cover_photo" value="' . $post['cover_photo'] . '" class="cover_photo">
             <button class="addPhoto">' . i18n_r('simpleBlog/ADD_PHOTO') . '</button>
             <script>
             	document.querySelector(".addPhoto").addEventListener("click", (e) => {
@@ -1068,7 +1214,7 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
                     echo '<br>';
 
                     echo '<label>' . i18n_r('simpleBlog/DESCRIPTION') . ':</label><textarea name="description" style="height:150px">' . htmlspecialchars($post['description']) . '</textarea><br>';
-                    echo '<label>Metadane (dla SEO):</label><textarea name="metadane"  style="height:150px"></textarea><br>';
+                    echo '<label>Metadane (dla SEO):</label><textarea name="metadane"  style="height:150px">' . $post['metadata'] . '</textarea><br>';
 
                     echo '<label>' . i18n_r('simpleBlog/CONTENT') . ':</label><textarea name="content" id="post-content" required rows="10">' . htmlspecialchars($post['content']) . '</textarea><br>';
                     echo '<label>' . i18n_r('simpleBlog/STATUS') . ':</label><select name="published" required>';
@@ -1368,6 +1514,7 @@ padding:5px;
             $total_pages = ceil($total_results / $posts_per_page);
 
             $displayed_posts = array_slice($all_posts, $offset, $posts_per_page);
+            global $SITEURL;
 
             foreach ($displayed_posts as $row) {
                 $tags_str = !empty($row['tags']) ? ' | ' . i18n_r('simpleBlog/TAGS') . ': ' . implode(', ', $row['tags']) : '';
@@ -1379,7 +1526,7 @@ padding:5px;
                     ($row['scheduled_date'] ? " | " . i18n_r('simpleBlog/SCHEDULED') . ": " . date('Y-m-d H:i', $row['scheduled_date']) : "") .
                     "</p>
             <div class='btn-row'> 
-                <a target='_blank' href='/" . get_setting($db, 'root_page') . "?post={$row['slug']}'>
+                <a target='_blank' href='" . $SITEURL . get_setting($db, 'root_page') . "?post={$row['slug']}'>
                     <svg width='15px' height='15px' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
                         <path d='M10 17C13.866 17 17 13.866 17 10C17 6.13401 13.866 3 10 3C6.13401 3 3 6.13401 3 10C3 13.866 6.13401 17 10 17Z' stroke='#000000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/>
                         <path d='M20.9992 21L14.9492 14.95' stroke='#000000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/>
@@ -1472,7 +1619,7 @@ padding:5px;
             break;
     }
 
-    echo    $pp ;
+    echo $pp;
     echo '</div>';
     $db->close();
 }
@@ -1523,8 +1670,8 @@ function get_blog_content($slug = null)
 
         if ($result) {
             global $metad, $SITEURL, $SITENAME, $title;
-            $metad = $result['metadane'];
-            $title = "{$result['title']}";
+            $metad = $result['metadata'];
+            $title = $result['title'];
 
             $tags_stmt = $db->prepare("SELECT t.name FROM tags t JOIN post_tags pt ON t.id = pt.tag_id WHERE pt.post_id = ?");
             $tags_stmt->bindValue(1, $result['id'], SQLITE3_INTEGER);
@@ -1535,7 +1682,6 @@ function get_blog_content($slug = null)
             }
             $tags_str = !empty($tags) ? '<p class="tags" style="display:none">' . i18n_r('simpleBlog/TAGS') . ': ' . implode(', ', $tags) . '</p>' : '';
 
-            $output .= "<h1>{$result['title']}</h1>";
             if (get_setting($db, 'use_slug_routing')) {
                 $output .= "<p><small>$timeIcon " . date('Y-m-d', $result['date']) . " | <a href ='" . $GLOBALS['SITEURL'] . get_setting($db, 'root_page') . "/category/" . checkCategory($result['category_id']) . "'>" . i18n_r('simpleBlog/CATEGORY') . ": {$result['category_name']} </a></small></p>";
 
@@ -1804,3 +1950,4 @@ function blog_theme_content()
 
     $db->close();
 }
+;
