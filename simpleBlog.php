@@ -8,7 +8,7 @@ i18n_merge('simpleBlog') || i18n_merge('simpleBlog', 'en_US');
 register_plugin(
     $thisfile,
     'SimpleBlog',
-    '2.0',
+    '2.1',
     'Multicolor',
     'http://ko-fi.com/multicolorplugins',
     'SimpleBlog for Simple CMS! Based on Sqlite3',
@@ -139,36 +139,123 @@ function generate_slug($title, $db, $table = 'posts', $exclude_id = null)
     // Map of special characters to their base equivalents
     $char_map = [
         // Polish characters
-        'ą' => 'a', 'ć' => 'c', 'ę' => 'e', 'ł' => 'l', 'ń' => 'n', 
-        'ó' => 'o', 'ś' => 's', 'ź' => 'z', 'ż' => 'z',
-        'Ą' => 'A', 'Ć' => 'C', 'Ę' => 'E', 'Ł' => 'L', 'Ń' => 'N', 
-        'Ó' => 'O', 'Ś' => 'S', 'Ź' => 'Z', 'Ż' => 'Z',
+        'ą' => 'a',
+        'ć' => 'c',
+        'ę' => 'e',
+        'ł' => 'l',
+        'ń' => 'n',
+        'ó' => 'o',
+        'ś' => 's',
+        'ź' => 'z',
+        'ż' => 'z',
+        'Ą' => 'A',
+        'Ć' => 'C',
+        'Ę' => 'E',
+        'Ł' => 'L',
+        'Ń' => 'N',
+        'Ó' => 'O',
+        'Ś' => 'S',
+        'Ź' => 'Z',
+        'Ż' => 'Z',
         // German characters
-        'ä' => 'ae', 'ö' => 'oe', 'ü' => 'ue', 'ß' => 'ss',
-        'Ä' => 'Ae', 'Ö' => 'Oe', 'Ü' => 'Ue',
+        'ä' => 'ae',
+        'ö' => 'oe',
+        'ü' => 'ue',
+        'ß' => 'ss',
+        'Ä' => 'Ae',
+        'Ö' => 'Oe',
+        'Ü' => 'Ue',
         // Spanish characters
-        'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
-        'ñ' => 'n', 'ü' => 'u', // ü in Spanish (less common)
-        'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U',
-        'Ñ' => 'N', 'Ü' => 'U',
+        'á' => 'a',
+        'é' => 'e',
+        'í' => 'i',
+        'ó' => 'o',
+        'ú' => 'u',
+        'ñ' => 'n',
+        'ü' => 'u', // ü in Spanish (less common)
+        'Á' => 'A',
+        'É' => 'E',
+        'Í' => 'I',
+        'Ó' => 'O',
+        'Ú' => 'U',
+        'Ñ' => 'N',
+        'Ü' => 'U',
         // Russian Cyrillic characters
-        'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd',
-        'е' => 'e', 'ё' => 'yo', 'ж' => 'zh', 'з' => 'z', 'и' => 'i',
-        'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n',
-        'о' => 'o', 'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't',
-        'у' => 'u', 'ф' => 'f', 'х' => 'kh', 'ц' => 'ts', 'ч' => 'ch',
-        'ш' => 'sh', 'щ' => 'sch', 'ъ' => '', 'ы' => 'y', 'ь' => '',
-        'э' => 'e', 'ю' => 'yu', 'я' => 'ya',
-        'А' => 'A', 'Б' => 'B', 'В' => 'V', 'Г' => 'G', 'Д' => 'D',
-        'Е' => 'E', 'Ё' => 'Yo', 'Ж' => 'Zh', 'З' => 'Z', 'И' => 'I',
-        'Й' => 'Y', 'К' => 'K', 'Л' => 'L', 'М' => 'M', 'Н' => 'N',
-        'О' => 'O', 'П' => 'P', 'Р' => 'R', 'С' => 'S', 'Т' => 'T',
-        'У' => 'U', 'Ф' => 'F', 'Х' => 'Kh', 'Ц' => 'Ts', 'Ч' => 'Ch',
-        'Ш' => 'Sh', 'Щ' => 'Sch', 'Ъ' => '', 'Ы' => 'Y', 'Ь' => '',
-        'Э' => 'E', 'Ю' => 'Yu', 'Я' => 'Ya',
-    // Ukrainian Cyrillic characters
-          'ґ' => 'g', 'і' => 'i', 'ї' => 'yi', 'є' => 'ye',
-        'Ґ' => 'G', 'І' => 'I', 'Ї' => 'Yi', 'Є' => 'Ye'
+        'а' => 'a',
+        'б' => 'b',
+        'в' => 'v',
+        'г' => 'g',
+        'д' => 'd',
+        'е' => 'e',
+        'ё' => 'yo',
+        'ж' => 'zh',
+        'з' => 'z',
+        'и' => 'i',
+        'й' => 'y',
+        'к' => 'k',
+        'л' => 'l',
+        'м' => 'm',
+        'н' => 'n',
+        'о' => 'o',
+        'п' => 'p',
+        'р' => 'r',
+        'с' => 's',
+        'т' => 't',
+        'у' => 'u',
+        'ф' => 'f',
+        'х' => 'kh',
+        'ц' => 'ts',
+        'ч' => 'ch',
+        'ш' => 'sh',
+        'щ' => 'sch',
+        'ъ' => '',
+        'ы' => 'y',
+        'ь' => '',
+        'э' => 'e',
+        'ю' => 'yu',
+        'я' => 'ya',
+        'А' => 'A',
+        'Б' => 'B',
+        'В' => 'V',
+        'Г' => 'G',
+        'Д' => 'D',
+        'Е' => 'E',
+        'Ё' => 'Yo',
+        'Ж' => 'Zh',
+        'З' => 'Z',
+        'И' => 'I',
+        'Й' => 'Y',
+        'К' => 'K',
+        'Л' => 'L',
+        'М' => 'M',
+        'Н' => 'N',
+        'О' => 'O',
+        'П' => 'P',
+        'Р' => 'R',
+        'С' => 'S',
+        'Т' => 'T',
+        'У' => 'U',
+        'Ф' => 'F',
+        'Х' => 'Kh',
+        'Ц' => 'Ts',
+        'Ч' => 'Ch',
+        'Ш' => 'Sh',
+        'Щ' => 'Sch',
+        'Ъ' => '',
+        'Ы' => 'Y',
+        'Ь' => '',
+        'Э' => 'E',
+        'Ю' => 'Yu',
+        'Я' => 'Ya',
+        // Ukrainian Cyrillic characters
+        'ґ' => 'g',
+        'і' => 'i',
+        'ї' => 'yi',
+        'є' => 'ye',
+        'Ґ' => 'G',
+        'І' => 'I',
+        'Ї' => 'Yi',
+        'Є' => 'Ye'
     ];
 
     // Replace special characters with their base equivalents
@@ -293,7 +380,6 @@ function get_sitemap()
 
     }
 
-    // Zakończenie sitemapy
     $sitemap_content .= '</urlset>' . PHP_EOL;
 
     // Zapis do pliku
@@ -302,7 +388,6 @@ function get_sitemap()
         error_log("Nie udało się zapisać sitemapy do pliku: " . $sitemap_file);
     }
 
-    // Zamknięcie połączenia z bazą
     $db->close();
 }
 
@@ -555,7 +640,7 @@ color:rgba(0,0,0,0.5    ) !important;
                 $content = $_POST['content'];
                 $category_id = $_POST['category_id'];
                 $tags = isset($_POST['tags']) ? explode(',', $_POST['tags']) : [];
-                $date = time();
+                $date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : time();
                 $published = $_POST['published'];
                 $scheduled_date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : null;
                 $description = $_POST['description'];
@@ -610,6 +695,7 @@ color:rgba(0,0,0,0.5    ) !important;
                 $post_id = filter_input(INPUT_POST, 'post_id', FILTER_VALIDATE_INT);
                 $title = filter_input(INPUT_POST, 'title', FILTER_UNSAFE_RAW);
                 $content = $_POST['content'] ?? null;
+                $date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : time();
                 $category_id = filter_input(INPUT_POST, 'category_id', FILTER_VALIDATE_INT);
                 $published = filter_input(INPUT_POST, 'published', FILTER_VALIDATE_INT);
                 $description = filter_input(INPUT_POST, 'description', FILTER_UNSAFE_RAW);
@@ -642,7 +728,7 @@ color:rgba(0,0,0,0.5    ) !important;
                 $db->exec('BEGIN TRANSACTION');
                 try {
                     // Update post
-                    $stmt = $db->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, category_id = ?, cover_photo = ?, published = ?, scheduled_date = ?, description = ?, metadata = ? WHERE id = ?");
+                    $stmt = $db->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, category_id = ?, cover_photo = ?, published = ?, scheduled_date = ?, description = ?, metadata = ?, date = ? WHERE id = ?");
                     if (!$stmt) {
                         throw new Exception('Failed to prepare UPDATE statement: ' . $db->lastErrorMsg());
                     }
@@ -654,8 +740,9 @@ color:rgba(0,0,0,0.5    ) !important;
                     $stmt->bindValue(6, $published, SQLITE3_INTEGER);
                     $stmt->bindValue(7, $scheduled_date, $scheduled_date ? SQLITE3_INTEGER : SQLITE3_NULL);
                     $stmt->bindValue(8, $description, SQLITE3_TEXT);
-                    $stmt->bindValue(9, $metadata, SQLITE3_TEXT); // Changed to metadata, verify DB schema
-                    $stmt->bindValue(10, $post_id, SQLITE3_INTEGER);
+                    $stmt->bindValue(9, $metadata, SQLITE3_TEXT);
+                    $stmt->bindValue(10, $date, SQLITE3_INTEGER);
+                    $stmt->bindValue(11, $post_id, SQLITE3_INTEGER);
                     $stmt->execute();
 
                     // Delete existing tags
