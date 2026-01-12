@@ -18,14 +18,16 @@ $i18n = [
     'MANAGEMENT' => 'Blog Management',
     'SEARCH_POSTS' => 'Search post...',
     'SNIPPET' => 'Snippets for theme',
+    'TAGS' => 'Tags',
 
     //function description
-
     'CATEGORY_LIST' => 'category list',
     'POSTS_LIST' => 'Posts list',
     'POSTS_LIST_DESC' => 'Posts list with description',
     'POSTS_LIST_FULL' => 'Posts list with description and Image',
     'POSTS_LIST_RANDOM' => 'Random Posts list',
+    'TAGS_LIST' => 'Tags list',
+    'DISPLAY_POST_TAGS' => 'Display post tags',
 
     // Notifications
     'POST_ADDED' => 'Post added successfully!',
@@ -33,7 +35,10 @@ $i18n = [
     'POST_DELETED' => 'Post deleted successfully!',
     'CATEGORY_ADDED' => 'Category added successfully!',
     'CATEGORY_DELETED' => 'Category deleted successfully!',
+    'TAG_ADDED' => 'Tag added successfully!',
+    'TAG_DELETED' => 'Tag deleted successfully!',
     'COMMENT_APPROVED' => 'Comment approved successfully!',
+    'COMMENT_DELETED' => 'Comment successfully removed!',
     'SETTINGS_SAVED' => 'Settings saved successfully!',
 
     // Settings Fields
@@ -62,6 +67,7 @@ $i18n = [
     'DELETE' => 'Delete',
     'CONFIRM_DELETE' => 'Are you sure you want to delete this category?',
     'CONFIRM_DELETE_POST' => 'Are you sure you want to delete this post?',
+    'CONFIRM_DELETE_COMMENT' => 'Are you sure you want to delete this comment?',
     'TITLE' => 'Title',
     'CATEGORY' => 'Category',
     'COVER_PHOTO' => 'Cover Photo',
@@ -73,6 +79,11 @@ $i18n = [
     'SCHEDULED' => 'Scheduled',
     'UPDATE_POST' => 'Update Post',
     'CURRENT' => 'Current',
+
+    // Tags
+    'TAGS_HELP' => 'Comma separated',
+    'TAGS_MANAGEMENT' => 'Manage Tags',
+    'ADD_TAG' => 'Add Tag',
 
     // Error Messages
     'POST_NOT_FOUND' => 'Post not found.',
@@ -92,17 +103,7 @@ $i18n = [
 
     // Pagination
     'PREVIOUS' => 'Previous',
-    'NEXT' => 'Next',
-
-    'TAGS' => 'Tags',   
-'TAGS_HELP' => 'comma separated',
-'TAGS_LIST' => 'Tags list',
-'TAGS_MANAGEMENT' => 'Manage Tags',
-'DISPLAY_POST_TAGS' => 'Display post tags',
-'ADD_TAG' => 'Add Tag',
- 'TAG_ADDED' => 'Tag added successfully!',
-'TAG_DELETED' => 'Tag deleted successfully!',
-'CONFIRM_DELETE' => 'Confirm delete?',
+    'NEXT' => 'Next'
 ];
 
 ?>
