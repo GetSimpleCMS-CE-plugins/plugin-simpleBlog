@@ -8,7 +8,7 @@ i18n_merge('simpleBlog') || i18n_merge('simpleBlog', 'en_US');
 register_plugin(
     $thisfile,
     'SimpleBlog',
-    '2.1',
+    '3.0',
     'Multicolor',
     'http://ko-fi.com/multicolorplugins',
     'SimpleBlog for Simple CMS! Based on Sqlite3',
@@ -23,6 +23,7 @@ add_action('blog-sidebar', 'createSideMenu', array($thisfile, i18n_r('simpleBlog
 add_action('blog-sidebar', 'createSideMenu', array($thisfile, i18n_r('simpleBlog/POSTS'), '?id=simpleBlog&blog_admin&tab=posts'));
 add_action('blog-sidebar', 'createSideMenu', array($thisfile, i18n_r('simpleBlog/CATEGORIES'), '?id=simpleBlog&blog_admin&tab=categories'));
 add_action('blog-sidebar', 'createSideMenu', array($thisfile, i18n_r('simpleBlog/COMMENTS'), '?id=simpleBlog&blog_admin&tab=comments'));
+add_action('blog-sidebar', 'createSideMenu', array($thisfile, i18n_r('simpleBlog/TAGS'), '?id=simpleBlog&blog_admin&tab=tags'));
 add_action('blog-sidebar', 'createSideMenu', array($thisfile, i18n_r('simpleBlog/SETTINGS'), '?id=simpleBlog&blog_admin&tab=settings'));
 add_action('blog-sidebar', 'createSideMenu', array($thisfile, i18n_r('simpleBlog/SNIPPET'), '?id=simpleBlog&blog_admin&tab=snippet'));
 
@@ -117,6 +118,24 @@ function blog_init_db()
             name TEXT PRIMARY KEY,
             value TEXT
         )");
+
+
+        // Dodaj domyślną kategorię w języku użytkownika
+        $uncategorized_names = [
+            'de' => 'Ohne Kategorie',
+            'en' => 'Uncategorized',
+            'es' => 'Sin categoría',
+            'pl' => 'Bez kategorii',
+            'ru' => 'Без категории',
+            'uk' => 'Без категорії'
+        ];
+        $current_lang = function_exists('return_i18n_lang') ? return_i18n_lang() : 'en';
+        $uncategorized_name = isset($uncategorized_names[$current_lang]) ? $uncategorized_names[$current_lang] : 'Uncategorized';
+
+        $stmt = $db->prepare("INSERT INTO categories (name, slug) VALUES (?, 'uncategorized')");
+        $stmt->bindValue(1, $uncategorized_name, SQLITE3_TEXT);
+        $stmt->execute();
+
 
         $db->close();
     } else {
@@ -325,14 +344,14 @@ function get_sitemap()
         } else {
             // Budujemy URL bez kodowania separatora &
             $url = $SITEURL . 'index.php?id=' . htmlspecialchars(get_setting($db, 'root_page'), ENT_QUOTES, 'UTF-8') .
-                '&slug=' . htmlspecialchars($row['slug'], ENT_QUOTES, 'UTF-8');
+                '&post=' . htmlspecialchars($row['slug'], ENT_QUOTES, 'UTF-8');
         }
 
         $sitemap_content .= '        <loc>' . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . '</loc>' . PHP_EOL;
 
         // Opcjonalnie: dodanie daty modyfikacji jeśli istnieje w tabeli
         if (isset($row['date'])) {
-            $sitemap_content .= '        <lastmod>' . date('Y-m-d', strtotime($row['date'])) . '</lastmod>' . PHP_EOL;
+            $sitemap_content .= '        <lastmod>' . date('Y-m-d', $row['date']) . '</lastmod>' . PHP_EOL;
         }
 
         $sitemap_content .= '        <changefreq>monthly</changefreq>' . PHP_EOL;
@@ -537,6 +556,55 @@ function get_randomPostList($number)
 
 
 
+
+
+function display_post_tags($post_id, $db) {
+    global $SITEURL;
+    $stmt = $db->prepare("SELECT tags.* FROM tags 
+                          INNER JOIN post_tags ON tags.id = post_tags.tag_id 
+                          WHERE post_tags.post_id = ?");
+    $stmt->bindValue(1, $post_id, SQLITE3_INTEGER);
+    $result = $stmt->execute();
+
+    $tags = [];
+    while ($row = $result->fetchArray()) {
+        $tags[] = $row;
+    }
+
+    if (!empty($tags)) {
+        echo '<div class="post-tags">';
+        echo '<span class="tags-label">' . i18n_r('simpleBlog/TAGS') . ': </span>';
+        foreach ($tags as $tag) {
+            if (get_setting($db, 'use_slug_routing')) {
+                echo '<a href="' . $SITEURL . get_setting($db, 'root_page') . '/tag/' . $tag['slug'] . '" class="tag-link">' . htmlspecialchars($tag['name']) . '</a> ';
+            } else {
+                echo '<a href="' . $SITEURL . 'index.php?id=' . get_setting($db, 'root_page') . '&tag=' . $tag['slug'] . '" class="tag-link">' . htmlspecialchars($tag['name']) . '</a> ';
+            }
+        }
+        echo '</div>';
+    }
+}
+
+
+function get_tagList() {
+    $db = new SQLite3(GSDATAOTHERPATH . 'blog.db');
+    $stmt = $db->prepare("SELECT * FROM tags ORDER BY name ASC");
+    $result = $stmt->execute();
+    global $SITEURL;
+
+    echo '<ul class="simpleBlogTags">';
+    while ($row = $result->fetchArray()) {
+        if (get_setting($db, 'use_slug_routing')) {
+            echo '<li><a href="' . $SITEURL . get_setting($db, 'root_page') . '/tag/' . $row['slug'] . '">' . htmlspecialchars($row['name']) . '</a></li>';
+        } else {
+            echo '<li><a href="' . $SITEURL . 'index.php?id=' . get_setting($db, 'root_page') . '&tag=' . $row['slug'] . '">' . htmlspecialchars($row['name']) . '</a></li>';
+        }
+    }
+    echo '</ul>';
+
+    $db->close();
+}
+
 //end function for frontend;
 
 function blog_admin()
@@ -638,7 +706,27 @@ color:rgba(0,0,0,0.5    ) !important;
                 $title = $_POST['title'];
                 $slug = generate_slug($title, $db);
                 $content = $_POST['content'];
-                $category_id = $_POST['category_id'];
+                // Jeśli nie wybrano kategorii, znajdź lub utwórz domyślną
+                if (empty($_POST['category_id'])) {
+                    $stmt = $db->prepare("SELECT id FROM categories WHERE slug = 'uncategorized'");
+                    $result = $stmt->execute()->fetchArray();
+                    if ($result) {
+                        $category_id = $result['id'];
+                    } else {
+                        $uncategorized_names = [
+                            'de' => 'Ohne Kategorie', 'en' => 'Uncategorized', 'es' => 'Sin categoría',
+                            'pl' => 'Bez kategorii', 'ru' => 'Без категории', 'uk' => 'Без категорії'
+                        ];
+                        $current_lang = function_exists('return_i18n_lang') ? return_i18n_lang() : 'en';
+                        $uncategorized_name = isset($uncategorized_names[$current_lang]) ? $uncategorized_names[$current_lang] : 'Uncategorized';
+                        $stmt = $db->prepare("INSERT INTO categories (name, slug) VALUES (?, 'uncategorized')");
+                        $stmt->bindValue(1, $uncategorized_name, SQLITE3_TEXT);
+                        $stmt->execute();
+                        $category_id = $db->lastInsertRowID();
+                    }
+                } else {
+                    $category_id = $_POST['category_id'];
+                }
                 $tags = isset($_POST['tags']) ? explode(',', $_POST['tags']) : [];
                 $date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : time();
                 $published = $_POST['published'];
@@ -696,7 +784,27 @@ color:rgba(0,0,0,0.5    ) !important;
                 $title = filter_input(INPUT_POST, 'title', FILTER_UNSAFE_RAW);
                 $content = $_POST['content'] ?? null;
                 $date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : time();
-                $category_id = filter_input(INPUT_POST, 'category_id', FILTER_VALIDATE_INT);
+                $category_id_input = filter_input(INPUT_POST, 'category_id', FILTER_VALIDATE_INT);
+                if (empty($category_id_input)) {
+                    $stmt = $db->prepare("SELECT id FROM categories WHERE slug = 'uncategorized'");
+                    $result = $stmt->execute()->fetchArray();
+                    if ($result) {
+                        $category_id = $result['id'];
+                    } else {
+                        $uncategorized_names = [
+                            'de' => 'Ohne Kategorie', 'en' => 'Uncategorized', 'es' => 'Sin categoría',
+                            'pl' => 'Bez kategorii', 'ru' => 'Без категории', 'uk' => 'Без категорії'
+                        ];
+                        $current_lang = function_exists('return_i18n_lang') ? return_i18n_lang() : 'en';
+                        $uncategorized_name = isset($uncategorized_names[$current_lang]) ? $uncategorized_names[$current_lang] : 'Uncategorized';
+                        $stmt = $db->prepare("INSERT INTO categories (name, slug) VALUES (?, 'uncategorized')");
+                        $stmt->bindValue(1, $uncategorized_name, SQLITE3_TEXT);
+                        $stmt->execute();
+                        $category_id = $db->lastInsertRowID();
+                    }
+                } else {
+                    $category_id = $category_id_input;
+                }
                 $published = filter_input(INPUT_POST, 'published', FILTER_VALIDATE_INT);
                 $description = filter_input(INPUT_POST, 'description', FILTER_UNSAFE_RAW);
                 $metadata = filter_input(INPUT_POST, 'metadane', FILTER_UNSAFE_RAW); // Changed to metadata, verify DB schema
@@ -708,7 +816,7 @@ color:rgba(0,0,0,0.5    ) !important;
                 $tags = isset($_POST['tags']) ? array_map('trim', explode(',', filter_var($_POST['tags'], FILTER_UNSAFE_RAW))) : [];
 
                 // Check for required fields
-                if (!$post_id || !$title || !$content || !$category_id) {
+                if (!$post_id || !$title || !$content) {
                     die('<div class="notification error">Required fields are missing.</div>');
                 }
 
@@ -828,7 +936,27 @@ color:rgba(0,0,0,0.5    ) !important;
                 break;
 
             case 'delete_category':
-                $category_id = $_POST['category_id'];
+                // Jeśli nie wybrano kategorii, znajdź lub utwórz domyślną
+                if (empty($_POST['category_id'])) {
+                    $stmt = $db->prepare("SELECT id FROM categories WHERE slug = 'uncategorized'");
+                    $result = $stmt->execute()->fetchArray();
+                    if ($result) {
+                        $category_id = $result['id'];
+                    } else {
+                        $uncategorized_names = [
+                            'de' => 'Ohne Kategorie', 'en' => 'Uncategorized', 'es' => 'Sin categoría',
+                            'pl' => 'Bez kategorii', 'ru' => 'Без категории', 'uk' => 'Без категорії'
+                        ];
+                        $current_lang = function_exists('return_i18n_lang') ? return_i18n_lang() : 'en';
+                        $uncategorized_name = isset($uncategorized_names[$current_lang]) ? $uncategorized_names[$current_lang] : 'Uncategorized';
+                        $stmt = $db->prepare("INSERT INTO categories (name, slug) VALUES (?, 'uncategorized')");
+                        $stmt->bindValue(1, $uncategorized_name, SQLITE3_TEXT);
+                        $stmt->execute();
+                        $category_id = $db->lastInsertRowID();
+                    }
+                } else {
+                    $category_id = $_POST['category_id'];
+                }
                 $stmt = $db->prepare("UPDATE posts SET category_id = NULL WHERE category_id = ?");
                 $stmt->bindValue(1, $category_id, SQLITE3_INTEGER);
                 $stmt->execute();
@@ -836,6 +964,27 @@ color:rgba(0,0,0,0.5    ) !important;
                 $stmt->bindValue(1, $category_id, SQLITE3_INTEGER);
                 $stmt->execute();
                 echo '<div class="notification">' . i18n_r('simpleBlog/CATEGORY_DELETED') . '</div>';
+                break;
+
+            case 'add_tag':
+                $name = $_POST['name'];
+                $slug = generate_slug($name, $db, 'tags');
+                $stmt = $db->prepare("INSERT INTO tags (name, slug) VALUES (?, ?)");
+                $stmt->bindValue(1, $name, SQLITE3_TEXT);
+                $stmt->bindValue(2, $slug, SQLITE3_TEXT);
+                $stmt->execute();
+                echo '<div class="notification">Tag added successfully!</div>';
+                break;
+
+            case 'delete_tag':
+                $tag_id = $_POST['tag_id'];
+                $stmt = $db->prepare("DELETE FROM post_tags WHERE tag_id = ?");
+                $stmt->bindValue(1, $tag_id, SQLITE3_INTEGER);
+                $stmt->execute();
+                $stmt = $db->prepare("DELETE FROM tags WHERE id = ?");
+                $stmt->bindValue(1, $tag_id, SQLITE3_INTEGER);
+                $stmt->execute();
+                echo '<div class="notification">Tag deleted successfully!</div>';
                 break;
 
 
@@ -941,6 +1090,12 @@ color:rgba(0,0,0,0.5    ) !important;
             echo '<p>' . i18n_r('simpleBlog/POSTS_LIST_RANDOM') . '</p>';
 
             echo ' <pre>get_randomPostList(3)</pre>';
+
+            echo '<p>Tags list:</p>';
+            echo ' <pre>get_tagList()</pre>';
+
+            echo '<p>Display post tags (in single post template):</p>';
+            echo ' <pre>display_post_tags($post_id, $db)</pre>';
 
 
             break;
@@ -1053,6 +1208,31 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
             break;
 
 
+
+        case 'tags':
+            echo '<h4>Manage Tags</h4>';
+            echo '<div class="blog-form">';
+            echo '<form method="post">';
+            echo '<input type="hidden" name="action" value="add_tag">';
+            echo '<label>' . i18n_r('simpleBlog/NAME') . ':</label><input type="text" name="name" required><br>';
+            echo '<input type="submit" value="' . i18n_r('simpleBlog/ADD_TAG') . '">';
+            echo '</form>';
+            echo '</div>';
+            echo '<hr>';
+            echo '<h4>' . i18n_r('simpleBlog/TAGS') . '</h4>';
+            echo '<div class="category-list">';
+            $results = $db->query("SELECT * FROM tags ORDER BY name ASC");
+            while ($row = $results->fetchArray()) {
+                echo '<div class="category-item">';
+                echo '<p>' . htmlspecialchars($row['name']) . ' (' . $row['slug'] . ')</p>';
+                echo '<form method="post" style="display:inline">';
+                echo '<input type="hidden" name="action" value="delete_tag">';
+                echo '<input type="hidden" name="tag_id" value="' . $row['id'] . '">';
+                echo '<input type="submit" value="' . i18n_r('simpleBlog/DELETE') . '" onclick="return confirm(\'' . i18n_r('simpleBlog/CONFIRM_DELETE') . '\')">';
+                echo '</form></div>';
+            }
+            echo '</div>';
+            break;
 
         case 'categories':
 

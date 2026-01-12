@@ -18,6 +18,7 @@ $i18n = [
     'MANAGEMENT' => 'Gestión del blog',
     'SEARCH_POSTS' => 'Buscar publicaciones...',
     'SNIPPET' => 'Fragmentos para el tema',
+    'TAGS' => 'Etiquetas',
 
     //function description
     'CATEGORY_LIST' => 'Lista de categorías',
@@ -25,6 +26,8 @@ $i18n = [
     'POSTS_LIST_DESC' => 'Lista de publicaciones con descripción',
     'POSTS_LIST_FULL' => 'Lista de publicaciones con descripción e imagen',
     'POSTS_LIST_RANDOM' => 'Lista de publicaciones aleatorias',
+    'TAGS_LIST' => 'Lista de etiquetas',
+    'DISPLAY_POST_TAGS' => 'Mostrar etiquetas de la publicación',
 
     // Notifications
     'POST_ADDED' => '¡Publicación añadida con éxito!',
@@ -32,7 +35,10 @@ $i18n = [
     'POST_DELETED' => '¡Publicación eliminada con éxito!',
     'CATEGORY_ADDED' => '¡Categoría añadida con éxito!',
     'CATEGORY_DELETED' => '¡Categoría eliminada con éxito!',
+    'TAG_ADDED' => '¡Etiqueta añadida con éxito!',
+    'TAG_DELETED' => '¡Etiqueta eliminada con éxito!',
     'COMMENT_APPROVED' => '¡Comentario aprobado con éxito!',
+    'COMMENT_DELETED' => '¡Comentario eliminado con éxito!',
     'SETTINGS_SAVED' => '¡Configuraciones guardadas con éxito!',
 
     // Settings Fields
@@ -61,18 +67,23 @@ $i18n = [
     'DELETE' => 'Eliminar',
     'CONFIRM_DELETE' => '¿Estás seguro de que quieres eliminar esta categoría?',
     'CONFIRM_DELETE_POST' => '¿Estás seguro de que quieres eliminar esta publicación?',
+    'CONFIRM_DELETE_COMMENT' => '¿Estás seguro de que quieres eliminar este comentario?',
     'TITLE' => 'Título',
     'CATEGORY' => 'Categoría',
-    'TAGS' => 'Etiquetas',
     'COVER_PHOTO' => 'Foto de portada',
     'CONTENT' => 'Contenido',
     'STATUS' => 'Estado',
     'PUBLISHED' => 'Publicado',
-    'BORRADOR' => 'Borrador/ Planificado',
+    'DRAFT' => 'Borrador/Planificado',
     'SCHEDULED_DATE' => 'Fecha programada',
     'SCHEDULED' => 'Programado',
     'UPDATE_POST' => 'Actualizar publicación',
     'CURRENT' => 'Actual',
+
+    // Tags
+    'TAGS_HELP' => 'separadas por comas',
+    'TAGS_MANAGEMENT' => 'Gestionar etiquetas',
+    'ADD_TAG' => 'Añadir etiqueta',
 
     // Error Messages
     'POST_NOT_FOUND' => 'Publicación no encontrada.',

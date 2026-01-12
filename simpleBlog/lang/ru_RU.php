@@ -18,6 +18,7 @@ $i18n = [
     'MANAGEMENT' => 'Управление блогом',
     'SEARCH_POSTS' => 'Поиск постов...',
     'SNIPPET' => 'Сниппеты для темы',
+    'TAGS' => 'Теги',
 
     //function description
     'CATEGORY_LIST' => 'Список категорий',
@@ -25,6 +26,8 @@ $i18n = [
     'POSTS_LIST_DESC' => 'Список постов с описанием',
     'POSTS_LIST_FULL' => 'Список постов с описанием и изображением',
     'POSTS_LIST_RANDOM' => 'Случайный список постов',
+    'TAGS_LIST' => 'Список тегов',
+    'DISPLAY_POST_TAGS' => 'Показать теги поста',
 
     // Notifications
     'POST_ADDED' => 'Пост успешно добавлен!',
@@ -32,7 +35,10 @@ $i18n = [
     'POST_DELETED' => 'Пост успешно удален!',
     'CATEGORY_ADDED' => 'Категория успешно добавлена!',
     'CATEGORY_DELETED' => 'Категория успешно удалена!',
+    'TAG_ADDED' => 'Тег успешно добавлен!',
+    'TAG_DELETED' => 'Тег успешно удален!',
     'COMMENT_APPROVED' => 'Комментарий успешно одобрен!',
+    'COMMENT_DELETED' => 'Комментарий успешно удален!',
     'SETTINGS_SAVED' => 'Настройки успешно сохранены!',
 
     // Settings Fields
@@ -61,18 +67,23 @@ $i18n = [
     'DELETE' => 'Удалить',
     'CONFIRM_DELETE' => 'Вы уверены, что хотите удалить эту категорию?',
     'CONFIRM_DELETE_POST' => 'Вы уверены, что хотите удалить этот пост?',
+    'CONFIRM_DELETE_COMMENT' => 'Вы уверены, что хотите удалить этот комментарий?',
     'TITLE' => 'Заголовок',
     'CATEGORY' => 'Категория',
-    'TAGS' => 'Теги',
     'COVER_PHOTO' => 'Обложка',
     'CONTENT' => 'Содержание',
     'STATUS' => 'Статус',
     'PUBLISHED' => 'Опубликовано',
-    'DRAFT' => 'Черновик',
+    'DRAFT' => 'Черновик/Запланировано',
     'SCHEDULED_DATE' => 'Дата публикации',
     'SCHEDULED' => 'Запланировано',
     'UPDATE_POST' => 'Обновить пост',
     'CURRENT' => 'Текущий',
+
+    // Tags
+    'TAGS_HELP' => 'разделенные запятыми',
+    'TAGS_MANAGEMENT' => 'Управление тегами',
+    'ADD_TAG' => 'Добавить тег',
 
     // Error Messages
     'POST_NOT_FOUND' => 'Пост не найден.',

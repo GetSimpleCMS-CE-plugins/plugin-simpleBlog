@@ -64,7 +64,6 @@ $i18n = [
     'CONFIRM_DELETE_POST' => 'Are you sure you want to delete this post?',
     'TITLE' => 'Title',
     'CATEGORY' => 'Category',
-    'TAGS' => 'Tags',
     'COVER_PHOTO' => 'Cover Photo',
     'CONTENT' => 'Content',
     'STATUS' => 'Status',
@@ -93,7 +92,17 @@ $i18n = [
 
     // Pagination
     'PREVIOUS' => 'Previous',
-    'NEXT' => 'Next'
+    'NEXT' => 'Next',
+
+    'TAGS' => 'Tags',   
+'TAGS_HELP' => 'comma separated',
+'TAGS_LIST' => 'Tags list',
+'TAGS_MANAGEMENT' => 'Manage Tags',
+'DISPLAY_POST_TAGS' => 'Display post tags',
+'ADD_TAG' => 'Add Tag',
+ 'TAG_ADDED' => 'Tag added successfully!',
+'TAG_DELETED' => 'Tag deleted successfully!',
+'CONFIRM_DELETE' => 'Confirm delete?',
 ];
 
 ?>

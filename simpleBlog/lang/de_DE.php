@@ -18,6 +18,7 @@ $i18n = [
     'MANAGEMENT' => 'Blog-Verwaltung',
     'SEARCH_POSTS' => 'Beiträge suchen...',
     'SNIPPET' => 'Snippets für das Theme',
+    'TAGS' => 'Tags',
 
     //function description
     'CATEGORY_LIST' => 'Kategorienliste',
@@ -25,6 +26,8 @@ $i18n = [
     'POSTS_LIST_DESC' => 'Beitragsliste mit Beschreibung',
     'POSTS_LIST_FULL' => 'Beitragsliste mit Beschreibung und Bild',
     'POSTS_LIST_RANDOM' => 'Zufällige Beitragsliste',
+    'TAGS_LIST' => 'Alle Tags anzeigen',
+    'DISPLAY_POST_TAGS' => 'Tags in einzelnem Beitrag anzeigen',
 
     // Notifications
     'POST_ADDED' => 'Beitrag erfolgreich hinzugefügt!',
@@ -32,7 +35,10 @@ $i18n = [
     'POST_DELETED' => 'Beitrag erfolgreich gelöscht!',
     'CATEGORY_ADDED' => 'Kategorie erfolgreich hinzugefügt!',
     'CATEGORY_DELETED' => 'Kategorie erfolgreich gelöscht!',
+    'TAG_ADDED' => 'Tag erfolgreich hinzugefügt!',
+    'TAG_DELETED' => 'Tag erfolgreich gelöscht!',
     'COMMENT_APPROVED' => 'Kommentar erfolgreich genehmigt!',
+    'COMMENT_DELETED' => 'Kommentar erfolgreich gelöscht!',
     'SETTINGS_SAVED' => 'Einstellungen erfolgreich gespeichert!',
 
     // Settings Fields
@@ -61,18 +67,23 @@ $i18n = [
     'DELETE' => 'Löschen',
     'CONFIRM_DELETE' => 'Sind Sie sicher, dass Sie diese Kategorie löschen möchten?',
     'CONFIRM_DELETE_POST' => 'Sind Sie sicher, dass Sie diesen Beitrag löschen möchten?',
+    'CONFIRM_DELETE_COMMENT' => 'Sind Sie sicher, dass Sie diesen Kommentar löschen möchten?',
     'TITLE' => 'Titel',
     'CATEGORY' => 'Kategorie',
-    'TAGS' => 'Tags',
     'COVER_PHOTO' => 'Titelbild',
     'CONTENT' => 'Inhalt',
     'STATUS' => 'Status',
     'PUBLISHED' => 'Veröffentlicht',
-    'DRAFT' => 'Entwurf/ Geplant',
+    'DRAFT' => 'Entwurf/Geplant',
     'SCHEDULED_DATE' => 'Geplantes Datum',
     'SCHEDULED' => 'Geplant',
     'UPDATE_POST' => 'Beitrag aktualisieren',
     'CURRENT' => 'Aktuell',
+
+    // Tags
+    'TAGS_HELP' => 'durch Komma getrennt',
+    'TAGS_MANAGEMENT' => 'Tag-Verwaltung',
+    'ADD_TAG' => 'Tag hinzufügen',
 
     // Error Messages
     'POST_NOT_FOUND' => 'Beitrag nicht gefunden.',

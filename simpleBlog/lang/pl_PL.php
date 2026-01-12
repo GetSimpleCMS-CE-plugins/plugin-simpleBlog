@@ -18,6 +18,7 @@ $i18n = [
     'MANAGEMENT' => 'Zarządzanie blogiem',
     'SEARCH_POSTS' => 'Szukaj postów...',
     'SNIPPET' => 'Fragmenty kodu dla motywu',
+    'TAGS' => 'Tagi',
 
     //function description
     'CATEGORY_LIST' => 'Lista kategorii',
@@ -25,6 +26,8 @@ $i18n = [
     'POSTS_LIST_DESC' => 'Lista postów z opisem',
     'POSTS_LIST_FULL' => 'Lista postów z opisem i zdjęciem',
     'POSTS_LIST_RANDOM' => 'Losowa lista postów',
+    'TAGS_LIST' => 'Lista tagów',
+    'DISPLAY_POST_TAGS' => 'Wyświetl tagi posta',
 
     // Notifications
     'POST_ADDED' => 'Post dodany pomyślnie!',
@@ -32,7 +35,10 @@ $i18n = [
     'POST_DELETED' => 'Post usunięty pomyślnie!',
     'CATEGORY_ADDED' => 'Kategoria dodana pomyślnie!',
     'CATEGORY_DELETED' => 'Kategoria usunięta pomyślnie!',
+    'TAG_ADDED' => 'Tag dodany pomyślnie!',
+    'TAG_DELETED' => 'Tag usunięty pomyślnie!',
     'COMMENT_APPROVED' => 'Komentarz zatwierdzony pomyślnie!',
+    'COMMENT_DELETED' => 'Komentarz usunięty pomyślnie!',
     'SETTINGS_SAVED' => 'Ustawienia zapisane pomyślnie!',
 
     // Settings Fields
@@ -61,18 +67,23 @@ $i18n = [
     'DELETE' => 'Usuń',
     'CONFIRM_DELETE' => 'Czy na pewno chcesz usunąć tę kategorię?',
     'CONFIRM_DELETE_POST' => 'Czy na pewno chcesz usunąć ten post?',
+    'CONFIRM_DELETE_COMMENT' => 'Czy na pewno chcesz usunąć ten komentarz?',
     'TITLE' => 'Tytuł',
     'CATEGORY' => 'Kategoria',
-    'TAGS' => 'Tagi',
     'COVER_PHOTO' => 'Zdjęcie okładkowe',
     'CONTENT' => 'Treść',
     'STATUS' => 'Status',
     'PUBLISHED' => 'Opublikowany',
-    'DRAFT' => 'Szkic/ Zaplanowane',
+    'DRAFT' => 'Szkic/Zaplanowane',
     'SCHEDULED_DATE' => 'Data publikacji',
     'SCHEDULED' => 'Zaplanowany',
     'UPDATE_POST' => 'Zaktualizuj post',
     'CURRENT' => 'Aktualny',
+
+    // Tags
+    'TAGS_HELP' => 'oddzielone przecinkami',
+    'TAGS_MANAGEMENT' => 'Zarządzanie tagami',
+    'ADD_TAG' => 'Dodaj tag',
 
     // Error Messages
     'POST_NOT_FOUND' => 'Post nie znaleziony.',
