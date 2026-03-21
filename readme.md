@@ -8,7 +8,7 @@ Welcome to **SimpleBlog**—a brilliantly designed plugin that transforms your G
 
 ## 1. General Overview
 - **Name:** SimpleBlog
-- **Version:** 2.0
+- **Version:** 3.1
 - **Author:** Multicolor
 - **Author’s Website:** [http://ko-fi.com/multicolorplugins](http://ko-fi.com/multicolorplugins)
 - **Description:** SimpleBlog is a masterpiece of design and functionality, bringing a seamless blogging experience to GetSimple CMS. With its sleek interface, robust features, and SQLite3-powered efficiency, it’s the perfect solution for anyone looking to elevate their website with a professional blog. Download it for free and use it on unlimited sites—our contribution to the GetSimple community!

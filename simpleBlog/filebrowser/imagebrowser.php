@@ -9,8 +9,6 @@ if (!defined('IN_GS')) {
 	die('you cannot load this page directly.');
 }
 
- 
-
 if (isset($_GET['path'])) {
 	$subPath = preg_replace('/\.+\//', '', $_GET['path']);
 	if ($subPath)
@@ -67,6 +65,7 @@ while ($file = readdir($dir_handle)) {
 		}
 	}
 }
+
 $filesSorted = subval_sort($filesArray, 'name');
 $dirsSorted = subval_sort($dirsArray, 'name');
 
@@ -114,8 +113,6 @@ $urlPath = "";
 					}
 					?>
 				</div>
-
-
 
 				<table class="highlight" id="imageTable">
 					<tbody>
@@ -187,9 +184,6 @@ $urlPath = "";
 						?>
 					</tbody>
 				</table>
- 
-
-				 
 
 				<script>
 					function submitLink(e) {
@@ -200,7 +194,6 @@ $urlPath = "";
 						window.opener.document.querySelector('.cover_photo').value = linkerNew.replace("<?php echo $SITEURL; ?>", '');
 						window.close();
 					}
-
 				</script>
 
 			</div>
