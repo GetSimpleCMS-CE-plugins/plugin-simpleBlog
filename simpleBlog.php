@@ -6,7 +6,7 @@ i18n_merge('simpleBlog') || i18n_merge('simpleBlog', 'en_US');
 register_plugin(
 	$thisfile,
 	'SimpleBlog',
-	'3.1',
+	'3.2',
 	'Multicolor',
 	'http://ko-fi.com/multicolorplugins',
 	'SimpleBlog for Simple CMS! Based on Sqlite3',
@@ -27,6 +27,12 @@ add_action('blog-sidebar', 'createSideMenu', array($thisfile, i18n_r('simpleBlog
 
 add_action('index-pretemplate', 'blog_theme_content');
 add_action('theme-header', 'styleTheme');
+
+// Early AJAX intercept for the image picker (browse uploads / upload new).
+if (!empty($_REQUEST['sb_picker_action']) && !is_frontend()) {
+	sb_picker_handle_ajax($_REQUEST['sb_picker_action']);
+	exit; // handle_ajax() always exit()s - safety net
+}
 
 function styleTheme(){
 	$db_file = GSDATAOTHERPATH . 'blog.db';
@@ -58,6 +64,7 @@ function blog_init_db(){
 			published INTEGER DEFAULT 1,
 			scheduled_date INTEGER,
 			description TEXT,
+			gallery TEXT,
 			FOREIGN KEY (category_id) REFERENCES categories(id)
 		)");
 
@@ -98,7 +105,7 @@ function blog_init_db(){
 			value TEXT
 		)");
 
-		// Dodaj domyślną kategorię w języku użytkownika
+		// Add default category in user language
 		$uncategorized_names = [
 			'de' => 'Ohne Kategorie',
 			'en' => 'Uncategorized',
@@ -119,6 +126,7 @@ function blog_init_db(){
 		$db = new SQLite3($db_file);
 		@$db->exec("ALTER TABLE posts ADD COLUMN description TEXT");
 		@$db->exec("ALTER TABLE posts ADD COLUMN metadata TEXT");
+		@$db->exec("ALTER TABLE posts ADD COLUMN gallery TEXT");
 		$db->close();
 	}
 
@@ -285,6 +293,553 @@ function get_setting($db, $name){
 	$stmt->bindValue(1, $name, SQLITE3_TEXT);
 	$result = $stmt->execute()->fetchArray();
 	return $result ? $result['value'] : '';
+}
+
+/**
+ * Sanitize the gallery JSON submitted from the admin form.
+ * @param string $raw Raw JSON string from $_POST['gallery']
+ * @return string Clean JSON array (always valid JSON, defaults to '[]')
+ */
+function sb_sanitize_gallery_input($raw){
+	$decoded = json_decode((string)$raw, true);
+	if (!is_array($decoded)) return '[]';
+
+	$clean = [];
+	foreach ($decoded as $item) {
+		if (!is_string($item)) continue;
+		$item = ltrim(trim($item), '/');
+		if ($item === '' || strpos($item, '..') !== false) continue;
+		if (strpos($item, 'data/uploads/') !== 0) continue;
+		$clean[] = $item;
+	}
+	return json_encode(array_values(array_unique($clean)));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IMAGE PICKER  -  uploads / thumbnails / browsing
+// ─────────────────────────────────────────────────────────────────────────────
+
+function sb_thumb_url($filename, $SITEURL) {
+	if (strpos($filename, 'data/uploads/') === 0) {
+		$filename = substr($filename, strlen('data/uploads/'));
+	}
+	$parts      = explode('/', $filename);
+	$basename   = array_pop($parts);
+	$subdir     = count($parts) ? implode('/', $parts) . '/' : '';
+	$thumb_file = GSTHUMBNAILPATH . $subdir . 'thumbnail.' . $basename;
+	if (file_exists($thumb_file)) {
+		return $SITEURL . 'data/thumbs/' . implode('/', array_map('rawurlencode', explode('/', $subdir . 'thumbnail.' . $basename)));
+	}
+	return $SITEURL . 'data/uploads/' . implode('/', array_map('rawurlencode', explode('/', $filename)));
+}
+
+// Recursively list every image in the GS uploads folder, including subfolders.
+function sb_get_upload_images($SITEURL) {
+	$images  = [];
+	$allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+	$base    = GSDATAUPLOADPATH;
+
+	$scan = function ($dir, $rel) use (&$scan, &$images, $allowed, $SITEURL) {
+		if (!is_dir($dir)) return;
+		foreach (scandir($dir) as $file) {
+			if ($file[0] === '.') continue;
+			$full = $dir . $file;
+			$path = $rel ? $rel . '/' . $file : $file;
+			if (is_dir($full)) {
+				$scan($full . '/', $path);
+			} else {
+				$ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+				if (!in_array($ext, $allowed)) continue;
+				$images[] = [
+					'filename' => $path,
+					'url'      => $SITEURL . 'data/uploads/' . implode('/', array_map('rawurlencode', explode('/', $path))),
+					'thumb'    => sb_thumb_url($path, $SITEURL),
+					'folder'   => $rel ?: '',
+					'basename' => $file,
+				];
+			}
+		}
+	};
+
+	$scan($base, '');
+	usort($images, fn($a, $b) => strcmp($a['filename'], $b['filename']));
+	return $images;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PICKER AJAX ENDPOINTS  (only reached via the early sb_picker_action intercept)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function sb_picker_handle_ajax($action) {
+	header('Content-Type: application/json');
+	global $SITEURL;
+
+	switch ($action) {
+
+		case 'get_uploads': {
+			echo json_encode(['ok' => true, 'images' => sb_get_upload_images($SITEURL)]);
+			exit;
+		}
+
+		case 'upload_image': {
+			if (empty($_FILES['image']['name'])) { echo json_encode(['ok' => false, 'msg' => 'No file']); exit; }
+
+			$file         = $_FILES['image'];
+			$allowed_mime = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+			$mime         = mime_content_type($file['tmp_name']);
+			if (!in_array($mime, $allowed_mime)) { echo json_encode(['ok' => false, 'msg' => 'Unsupported file type']); exit; }
+			if ($file['size'] > 8 * 1024 * 1024) { echo json_encode(['ok' => false, 'msg' => 'File exceeds 8 MB']); exit; }
+
+			$ext      = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+			$safe_ext = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']) ? $ext : 'jpg';
+			// Sanitise original filename: lowercase, replace spaces/special chars with hyphens
+			$base = strtolower(pathinfo($file['name'], PATHINFO_FILENAME));
+			$base = preg_replace('/[^a-z0-9._-]/', '-', $base);
+			$base = preg_replace('/-+/', '-', trim($base, '-'));
+			$base = $base ?: 'image';
+			$filename = $base . '.' . $safe_ext;
+			// Handle filename collisions - append -1, -2, etc. if the file already exists
+			if (file_exists(GSDATAUPLOADPATH . $filename)) {
+				$i = 1;
+				while (file_exists(GSDATAUPLOADPATH . $base . '-' . $i . '.' . $safe_ext)) { $i++; }
+				$filename = $base . '-' . $i . '.' . $safe_ext;
+			}
+
+			$dest = GSDATAUPLOADPATH . $filename;
+			if (!move_uploaded_file($file['tmp_name'], $dest)) {
+				echo json_encode(['ok' => false, 'msg' => 'Upload failed']); exit;
+			}
+			
+			$imgmanip = GSADMININCPATH . 'imagemanipulation.php';
+			if (file_exists($imgmanip)) {
+				require_once($imgmanip);
+				if (function_exists('genStdThumb')) genStdThumb('', $filename);
+			}
+
+			echo json_encode(['ok' => true, 'image' => [
+				'filename' => $filename,
+				'url'      => $SITEURL . 'data/uploads/' . rawurlencode($filename),
+				'thumb'    => sb_thumb_url($filename, $SITEURL),
+				'folder'   => '',
+				'basename' => $filename,
+			]]);
+			exit;
+		}
+
+		default:
+			echo json_encode(['ok' => false, 'msg' => 'Unknown action']);
+			exit;
+	}
+}
+
+/**
+ * Renders the shared image picker modal (Browse Uploads / Upload New tabs)
+ * @param string $SITEURL Site base URL
+ * @return string HTML
+ */
+function sb_render_picker_modal($SITEURL){
+	$html = '<div class="sb-picker-modal" id="sb-picker-modal" style="display:none;">
+		<div class="sb-picker-inner">
+			<div class="sb-picker-head">
+				<h4 id="sb-picker-title">' . i18n_r('simpleBlog/PICKER_TITLE') . '</h4>
+				<button type="button" class="sb-picker-close" id="sb-picker-close">&times;</button>
+			</div>
+
+			<div class="sb-picker-tabs">
+				<button type="button" class="sb-picker-tab active" data-tab="browse">' . i18n_r('simpleBlog/PICKER_BROWSE') . '</button>
+				<button type="button" class="sb-picker-tab" data-tab="upload">' . i18n_r('simpleBlog/PICKER_UPLOAD') . '</button>
+			</div>
+
+			<div class="sb-picker-pane" id="sb-picker-browse">
+				<div class="sb-picker-crumb" id="sb-picker-crumb"></div>
+				<div class="sb-picker-search-row">
+					<input type="text" id="sb-picker-search" placeholder="' . htmlspecialchars(strip_tags(i18n_r('simpleBlog/PICKER_FILTER')), ENT_QUOTES, 'UTF-8') . '">
+				</div>
+				<div class="sb-picker-grid" id="sb-picker-grid"><div class="sb-picker-loading">' . i18n_r('simpleBlog/PICKER_LOADING') . '</div></div>
+			</div>
+
+			<div class="sb-picker-pane" id="sb-picker-upload" style="display:none;">
+				<label class="sb-picker-upload-area" for="sb-picker-upload-input">
+					<span>' . i18n_r('simpleBlog/PICKER_CHOOSE_FILES') . '</span>
+				</label>
+				<input type="file" id="sb-picker-upload-input" accept="image/png,image/jpeg,image/gif,image/webp" multiple style="display:none;">
+				<div class="sb-picker-upload-status" id="sb-picker-upload-status"></div>
+			</div>
+		</div>
+	</div>';
+
+	$html .= '<style>
+	.sb-picker-modal{position:fixed;inset:0;background:rgba(20,20,30,.55);z-index:99999;display:flex;align-items:flex-start;justify-content:center;padding:3rem 1rem 1rem;}
+	.sb-picker-inner{background:#fff;width:min(660px,92vw);max-height:calc(100vh - 4rem);border-radius:8px;overflow-y:auto;display:flex;flex-direction:column}
+	.sb-picker-head{display:flex;justify-content:space-between;align-items:center;padding:1rem 1.25rem;border-bottom:1px solid #f0f0f0;position:sticky;top:0;background:#fff;z-index:1}
+	.sb-picker-head h4{margin:0;font-size:.9375rem}
+	.sb-picker-close{border:none;background:none;font-size:22px;line-height:1;cursor:pointer;color:#6b7280}
+
+	.sb-picker-tabs{display:flex;gap:0;border-bottom:1px solid #e5e7eb;padding:0 1.25rem;margin-top:.25rem}
+	.sb-picker-tab{display:inline-flex;align-items:center;gap:.4rem;background:none;border:none;border-bottom:2px solid transparent;padding:.6rem 1rem;font-size:.875rem;font-weight:600;color:#6b7280;cursor:pointer;margin-bottom:-1px}
+	.sb-picker-tab.active{color:#2764e7;border-bottom-color:#2764e7}
+	.sb-picker-tab:hover:not(.active){color:#374151}
+	.sb-picker-pane{padding:1.25rem}
+
+	.sb-picker-crumb{font-size:.8125rem;color:#6b7280;margin-bottom:.6rem;display:flex;align-items:center;flex-wrap:wrap;gap:.2rem;min-height:1.4rem}
+	.sb-picker-crumb-item{cursor:pointer;color:#2764e7;font-weight:600;padding:.1rem .2rem;border-radius:3px}
+	.sb-picker-crumb-item:hover{background:#f0f4ff}
+	.sb-picker-crumb-item.active{color:#374151;cursor:default;font-weight:400}
+	.sb-picker-crumb-item.active:hover{background:none}
+
+	.sb-picker-search-row{margin-bottom:.75rem}
+	.sb-picker-search-row input{width:100%;box-sizing:border-box;padding:.45rem .75rem;border:1px solid #d0d5dd;border-radius:6px;font-size:.875rem;font-family:inherit}
+	.sb-picker-search-row input:focus{outline:none;border-color:#2764e7;box-shadow:0 0 0 3px rgba(39,100,231,.1)}
+
+	.sb-picker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:.6rem;max-height:360px;overflow-y:auto;padding:.25rem}
+	.sb-picker-img{cursor:pointer;border:2px solid transparent;border-radius:7px;overflow:hidden;background:#f4f6f9;display:flex;flex-direction:column}
+	.sb-picker-img:hover{border-color:#2764e7;box-shadow:0 2px 8px rgba(39,100,231,.2)}
+	.sb-picker-img img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+	.sb-picker-name{font-size:.67rem;color:#6b7280;padding:.2rem .3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;background:#f9fafb}
+	.sb-picker-empty{text-align:center;color:#9ca3af;padding:2rem;font-size:.875rem;grid-column:1/-1}
+
+	.sb-picker-folder{cursor:pointer;border:2px solid #e5e7eb;border-radius:7px;background:#fffbeb;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.6rem .4rem;gap:.3rem;position:relative}
+	.sb-picker-folder:hover{border-color:#f59e0b;background:#fef3c7}
+	.sb-picker-folder .sb-picker-name{font-size:.72rem;color:#92400e;font-weight:600;text-align:center;background:none}
+	.sb-picker-folder-count{position:absolute;top:4px;right:5px;font-size:.65rem;color:#92400e;font-weight:700;background:#fde68a;border-radius:3px;padding:0 .25rem}
+
+	.sb-picker-upload-area{display:flex;align-items:center;justify-content:center;border:2px dashed #d0d5dd;border-radius:9px;padding:2.5rem 1.5rem;text-align:center;background:#fafafa;cursor:pointer;font-size:.875rem;color:#6b7280;font-weight:600}
+	.sb-picker-upload-area:hover{border-color:#2764e7;background:#f8faff;color:#2764e7}
+	.sb-picker-upload-status{font-size:.8rem;color:#6b7280;margin-top:.75rem}
+	.sb-picker-loading{grid-column:1/-1;text-align:center;padding:2.5rem;color:#9ca3af;font-size:.875rem}
+	</style>';
+
+	$html .= '<script>
+	(function(){
+		if (window.sbOpenPicker) return; // only wire this up once per page
+
+		var ajaxUrl = window.location.pathname + window.location.search;
+		var modal   = document.getElementById("sb-picker-modal");
+		var grid    = document.getElementById("sb-picker-grid");
+		var crumb   = document.getElementById("sb-picker-crumb");
+		var search  = document.getElementById("sb-picker-search");
+		var uploadIn = document.getElementById("sb-picker-upload-input");
+		var uploadSt = document.getElementById("sb-picker-upload-status");
+		var closeBtn = document.getElementById("sb-picker-close");
+
+		var state = { mode: "cover_photo", images: [], folder: "" };
+
+		function post(action, data) {
+			var body = new URLSearchParams(Object.assign({ sb_picker_action: action }, data || {}));
+			return fetch(ajaxUrl, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: body.toString() })
+				.then(function(r){ return r.json(); });
+		}
+
+		function esc(s) {
+			var d = document.createElement("div");
+			d.textContent = s == null ? "" : s;
+			return d.innerHTML;
+		}
+
+		function load(force) {
+			if (state.images.length && !force) { render(); return; }
+			grid.innerHTML = "<div class=\\"sb-picker-loading\\">" + ' . json_encode(i18n_r('simpleBlog/PICKER_LOADING')) . ' + "</div>";
+			fetch(ajaxUrl + (ajaxUrl.indexOf("?") === -1 ? "?" : "&") + "sb_picker_action=get_uploads")
+				.then(function(r){ return r.json(); })
+				.then(function(res){
+					state.images = res.images || [];
+					render();
+				});
+		}
+
+		function render() {
+			var filter = (search ? search.value : "").toLowerCase().trim();
+			var images, folders;
+
+			if (filter) {
+				images = state.images.filter(function(img){ return img.filename.toLowerCase().indexOf(filter) !== -1; });
+				folders = [];
+			} else {
+				var seen = {};
+				folders = [];
+				images = [];
+				state.images.forEach(function(img){
+					if (state.folder && img.filename.indexOf(state.folder + "/") !== 0) return;
+					var rel = state.folder ? img.filename.slice(state.folder.length + 1) : img.filename;
+					var parts = rel.split("/");
+					if (parts.length > 1) {
+						var sub = (state.folder ? state.folder + "/" : "") + parts[0];
+						if (!seen[sub]) { seen[sub] = true; folders.push(parts[0]); }
+					} else {
+						images.push(img);
+					}
+				});
+			}
+
+			if (crumb) {
+				var html = "<svg style=\"vertical-align:middle;\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"#f59e0b\"><path d=\"M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z\"></path></svg> <span class=\\"sb-picker-crumb-item" + (state.folder === "" ? " active" : "") + "\\" data-nav=\\"\\">uploads</span>";
+				if (state.folder) {
+					var parts = state.folder.split("/"), built = "";
+					parts.forEach(function(p, i){
+						built = built ? built + "/" + p : p;
+						html += " / <span class=\\"sb-picker-crumb-item" + (i === parts.length - 1 ? " active" : "") + "\\" data-nav=\\"" + esc(built) + "\\">" + esc(p) + "</span>";
+					});
+				}
+				crumb.innerHTML = html;
+			}
+
+			if (!folders.length && !images.length) {
+				grid.innerHTML = "<p class=\\"sb-picker-empty\\">" + ' . json_encode(i18n_r('simpleBlog/PICKER_NO_IMAGES')) . ' + "</p>";
+				return;
+			}
+
+			var out = "";
+			folders.sort().forEach(function(f){
+				var fullPath = (state.folder ? state.folder + "/" : "") + f;
+				var count = state.images.filter(function(img){ return img.filename.indexOf(fullPath + "/") === 0; }).length;
+				out += "<div class=\\"sb-picker-folder\\" data-nav=\\"" + esc(fullPath) + "\\">"
+					+ "<svg width=\\"28\\" height=\\"28\\" viewBox=\\"0 0 24 24\\" fill=\\"#f59e0b\\"><path d=\\"M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z\\"/></svg>"
+					+ "<span class=\\"sb-picker-name\\">" + esc(f) + "</span>"
+					+ "<span class=\\"sb-picker-folder-count\\">" + count + "</span>"
+					+ "</div>";
+			});
+			images.forEach(function(img){
+				out += "<div class=\\"sb-picker-img\\" data-pick=\\"" + esc(img.filename) + "\\" title=\\"" + esc(img.filename) + "\\">"
+					+ "<img src=\\"" + esc(img.thumb) + "\\" alt=\\"" + esc(img.basename) + "\\" loading=\\"lazy\\">"
+					+ "<span class=\\"sb-picker-name\\">" + esc(img.basename) + "</span>"
+					+ "</div>";
+			});
+			grid.innerHTML = out;
+		}
+
+		function select(filename) {
+			var stored = "data/uploads/" + filename;
+			if (state.mode === "gallery") {
+				if (typeof window.sbAddGalleryImage === "function") window.sbAddGalleryImage(stored);
+			} else {
+				var el = document.querySelector(".cover_photo");
+				if (el) el.value = stored;
+				var preview = document.querySelector(".cur_photo");
+				if (preview) {
+					preview.setAttribute("src", ' . json_encode($SITEURL) . ' + stored);
+					preview.style.display = "";
+				}
+				close();
+			}
+		}
+
+		function open(mode) {
+			state.mode = mode || "cover_photo";
+			state.folder = "";
+			if (search) search.value = "";
+			if (uploadIn) uploadIn.multiple = (state.mode === "gallery");
+			document.querySelectorAll(".sb-picker-tab").forEach(function(b, i){ b.classList.toggle("active", i === 0); });
+			document.getElementById("sb-picker-browse").style.display = "";
+			document.getElementById("sb-picker-upload").style.display = "none";
+			if (modal) modal.style.display = "flex";
+			load();
+		}
+
+		function close() {
+			if (modal) modal.style.display = "none";
+		}
+
+		window.sbOpenPicker = open;
+
+		if (closeBtn) closeBtn.addEventListener("click", close);
+		if (modal) modal.addEventListener("click", function(e){ if (e.target === modal) close(); });
+
+		document.querySelectorAll(".sb-picker-tab").forEach(function(btn){
+			btn.addEventListener("click", function(){
+				document.querySelectorAll(".sb-picker-tab").forEach(function(b){ b.classList.remove("active"); });
+				btn.classList.add("active");
+				var tab = btn.dataset.tab;
+				document.getElementById("sb-picker-browse").style.display = tab === "browse" ? "" : "none";
+				document.getElementById("sb-picker-upload").style.display = tab === "upload" ? "" : "none";
+			});
+		});
+
+		if (grid) grid.addEventListener("click", function(e){
+			var folderEl = e.target.closest("[data-nav]");
+			if (folderEl) { state.folder = folderEl.dataset.nav; if (search) search.value = ""; render(); return; }
+			var imgEl = e.target.closest("[data-pick]");
+			if (imgEl) select(imgEl.dataset.pick);
+		});
+		if (crumb) crumb.addEventListener("click", function(e){
+			var el = e.target.closest("[data-nav]");
+			if (!el) return;
+			state.folder = el.dataset.nav;
+			if (search) search.value = "";
+			render();
+		});
+		if (search) search.addEventListener("input", render);
+
+		if (uploadIn) uploadIn.addEventListener("change", function(){
+			var files = Array.prototype.slice.call(uploadIn.files || []);
+			if (!files.length) return;
+			var done = 0;
+			uploadSt.textContent = ' . json_encode(i18n_r('simpleBlog/PICKER_UPLOADING')) . ' + " 0 / " + files.length + "\\u2026";
+			files.forEach(function(file){
+				var fd = new FormData();
+				fd.append("sb_picker_action", "upload_image");
+				fd.append("image", file);
+				fetch(ajaxUrl, { method: "POST", body: fd })
+					.then(function(r){ return r.json(); })
+					.then(function(res){
+						done++;
+						uploadSt.textContent = ' . json_encode(i18n_r('simpleBlog/PICKER_UPLOADING')) . ' + " " + done + " / " + files.length + "\\u2026";
+						if (res.ok) {
+							state.images = []; // invalidate cache so Browse tab reflects the new upload
+							select(res.image.filename);
+						}
+						if (done === files.length) {
+							uploadSt.textContent = "";
+							uploadIn.value = "";
+						}
+					});
+			});
+		});
+	})();
+	</script>';
+
+	return $html;
+}
+
+/**
+ * Renders the gallery picker field (hidden input + thumbnail preview + add button)
+ * used on both the Add Post and Edit Post admin forms.
+ *
+ * @param string $initial_gallery_json JSON array of uploads-relative image paths
+ * @param string $SITEURL Site base URL
+ * @return string HTML
+ */
+function sb_gallery_field_html($initial_gallery_json, $SITEURL){
+	$decoded = json_decode((string)$initial_gallery_json, true);
+	if (!is_array($decoded)) $decoded = [];
+	$initial_json_attr = htmlspecialchars(json_encode(array_values($decoded)), ENT_QUOTES, 'UTF-8');
+
+	$html  = '<label>' . i18n_r('simpleBlog/GALLERY') . ':</label>';
+	$html .= '<div class="sb-gallery-field">';
+	$html .= '<input type="hidden" name="gallery" id="sb-gallery-hidden" value="' . $initial_json_attr . '">';
+	$html .= '<div id="sb-gallery-preview" class="sb-gallery-preview"></div>';
+	$html .= '<button type="button" class="sb-gallery-add-btn addPhoto">' . i18n_r('simpleBlog/ADD_GALLERY_IMAGE') . '</button>';
+	$html .= '<p class="sb-gallery-help">' . i18n_r('simpleBlog/GALLERY_HELP') . '</p>';
+	$html .= '</div>';
+
+	$html .= '<style>
+		.sb-gallery-preview{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;min-height:4px}
+		.sb-gallery-thumb{position:relative;width:90px;height:90px;border:1px solid #ddd;border-radius:4px;overflow:hidden;background:#f4f4f4}
+		.sb-gallery-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+		.sb-gallery-thumb .sb-gallery-remove{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:18px;font-size:13px;cursor:pointer;padding:0}
+		.sb-gallery-thumb .sb-gallery-remove:hover{background:#c0392b}
+		.sb-gallery-help{font-size:.8em;color:#777;margin:4px 0 0}
+	</style>';
+
+	$html .= '<script>
+	(function(){
+		var sbGalleryImages = [];
+		try {
+			var sbGalleryHidden = document.getElementById("sb-gallery-hidden");
+			var parsed = JSON.parse((sbGalleryHidden && sbGalleryHidden.value) || "[]");
+			if (Array.isArray(parsed)) sbGalleryImages = parsed;
+		} catch (e) { sbGalleryImages = []; }
+
+		function sbSaveGallery(){
+			var hidden = document.getElementById("sb-gallery-hidden");
+			if (hidden) hidden.value = JSON.stringify(sbGalleryImages);
+		}
+
+		function sbRenderGalleryPreview(){
+			var wrap = document.getElementById("sb-gallery-preview");
+			if (!wrap) return;
+			var html = "";
+			sbGalleryImages.forEach(function(url, idx){
+				html += "<div class=\"sb-gallery-thumb\">"
+					+ "<img src=\"' . $SITEURL . '" + url + "\">"
+					+ "<button type=\"button\" class=\"sb-gallery-remove\" data-idx=\"" + idx + "\">&times;</button>"
+					+ "</div>";
+			});
+			wrap.innerHTML = html;
+		}
+
+		window.sbAddGalleryImage = function(url){
+			if (!url || sbGalleryImages.indexOf(url) !== -1) return;
+			sbGalleryImages.push(url);
+			sbSaveGallery();
+			sbRenderGalleryPreview();
+		};
+
+		document.addEventListener("click", function(e){
+			var btn = e.target && e.target.closest ? e.target.closest(".sb-gallery-remove") : null;
+			if (!btn) return;
+			var idx = parseInt(btn.getAttribute("data-idx"), 10);
+			if (isNaN(idx)) return;
+			sbGalleryImages.splice(idx, 1);
+			sbSaveGallery();
+			sbRenderGalleryPreview();
+		});
+
+		var sbAddBtn = document.querySelector(".sb-gallery-add-btn");
+		if (sbAddBtn) {
+			sbAddBtn.addEventListener("click", function(e){
+				e.preventDefault();
+				if (window.sbOpenPicker) window.sbOpenPicker("gallery");
+			});
+		}
+
+		sbRenderGalleryPreview();
+	})();
+	</script>';
+
+	return $html;
+}
+
+/**
+ * Renders the front-end gallery grid for a single post, using GLightbox
+ * (bundled under plugins/simpleBlog/assets/glightbox/) for the lightbox.
+ *
+ * @param string $gallery_json JSON array of uploads-relative image paths
+ * @param string $SITEURL Site base URL
+ * @param int    $post_id Post ID, used to scope the GLightbox instance to this gallery
+ * @param string $alt_title Alt text base (post title)
+ * @return string HTML, empty string if no gallery images
+ */
+function sb_render_public_gallery($gallery_json, $SITEURL, $post_id, $alt_title = ''){
+	$images = json_decode((string)$gallery_json, true);
+	if (!is_array($images) || empty($images)) return '';
+
+	$alt = htmlspecialchars($alt_title, ENT_QUOTES, 'UTF-8');
+	$gid = 'sb-gallery-' . (int)$post_id;
+
+	$html = '<div class="sb-post-gallery" id="' . $gid . '">';
+	foreach ($images as $img) {
+		$full  = htmlspecialchars($SITEURL . $img, ENT_QUOTES, 'UTF-8');
+		$thumb = htmlspecialchars(sb_thumb_url($img, $SITEURL), ENT_QUOTES, 'UTF-8');
+		$html .= '<a href="' . $full . '" class="glightbox sb-post-gallery-item" data-gallery="' . $gid . '">';
+		$html .= '<img src="' . $thumb . '" alt="' . $alt . '" loading="lazy">';
+		$html .= '</a>';
+	}
+	$html .= '</div>';
+
+	$html .= '<style>
+		.sb-post-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:16px 0}
+		.sb-post-gallery-item{display:block;border:1px solid #ccc;border-radius:6px;overflow:hidden;line-height:0}
+		.sb-post-gallery-item img{width:100%;height:140px;object-fit:cover;display:block;transition:transform .15s; margin:0!important}
+		.sb-post-gallery-item:hover img{transform:scale(1.04)}
+	</style>';
+
+	$html .= '<link rel="stylesheet" href="' . $SITEURL . 'plugins/simpleBlog/assets/glightbox/glightbox.min.css">';
+	$html .= '<script src="' . $SITEURL . 'plugins/simpleBlog/assets/glightbox/glightbox.min.js"></script>';
+	$html .= '<script>
+	(function(){
+		function sbInitLightbox(){
+			if (!window.GLightbox) return;
+			GLightbox({ selector: "#' . $gid . ' .glightbox" });
+		}
+		if (document.readyState === "loading") {
+			document.addEventListener("DOMContentLoaded", sbInitLightbox);
+		} else {
+			sbInitLightbox();
+		}
+	})();
+	</script>';
+
+	return $html;
 }
 
 // sitemap
@@ -582,7 +1137,7 @@ function blog_admin(){
 		.post-item a, .category-item a { color: #0073aa; text-decoration: none; margin-left: 10px; }
 		.post-item a:hover, .category-item a:hover { text-decoration: underline; }
 		.category-item form, .post-item form { display: inline; }
-		.category-item input[type="submit"], .post-item input[type="submit"] { background: #d63638; color: #fff; padding: 5px 10px; }
+		.category-item input[type="submit"], .post-item input[type="submit"] { border-radius: 4px; background: #d63638; color: #fff; padding: 5px 10px; }
 		.category-item input[type="submit"]:hover, .post-item input[type="submit"]:hover { background: #b32d2e; }
 		.comment-item { background: #f9f9f9; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
 		.comment-item form { display: inline; }
@@ -658,8 +1213,9 @@ function blog_admin(){
 				$metadata = $_POST['metadane'];
 
 				$cover_photo = $_POST['cover_photo'];
+				$gallery = sb_sanitize_gallery_input($_POST['gallery'] ?? '');
 
-				$stmt = $db->prepare("INSERT INTO posts (title, slug, content, category_id, cover_photo, date, published, scheduled_date, description ,metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?)");
+				$stmt = $db->prepare("INSERT INTO posts (title, slug, content, category_id, cover_photo, date, published, scheduled_date, description ,metadata, gallery) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?,?)");
 				$stmt->bindValue(1, $title, SQLITE3_TEXT);
 				$stmt->bindValue(2, $slug, SQLITE3_TEXT);
 				$stmt->bindValue(3, $content, SQLITE3_TEXT);
@@ -670,6 +1226,7 @@ function blog_admin(){
 				$stmt->bindValue(8, $scheduled_date, $scheduled_date ? SQLITE3_INTEGER : SQLITE3_NULL);
 				$stmt->bindValue(9, $description, SQLITE3_TEXT);
 				$stmt->bindValue(10, $metadata, SQLITE3_TEXT);
+				$stmt->bindValue(11, $gallery, SQLITE3_TEXT);
 				$stmt->execute();
 				$post_id = $db->lastInsertRowID();
 
@@ -730,6 +1287,7 @@ function blog_admin(){
 				$description = filter_input(INPUT_POST, 'description', FILTER_UNSAFE_RAW);
 				$metadata = filter_input(INPUT_POST, 'metadane', FILTER_UNSAFE_RAW); // Changed to metadata, verify DB schema
 				$cover_photo = !empty($_POST['cover_photo']) ? filter_var($_POST['cover_photo'], FILTER_UNSAFE_RAW) : null;
+				$gallery = sb_sanitize_gallery_input($_POST['gallery'] ?? '');
 				$scheduled_date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : null;
 				if ($scheduled_date === false) {
 					$scheduled_date = null; // Handle invalid date
@@ -757,7 +1315,7 @@ function blog_admin(){
 				$db->exec('BEGIN TRANSACTION');
 				try {
 					// Update post
-					$stmt = $db->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, category_id = ?, cover_photo = ?, published = ?, scheduled_date = ?, description = ?, metadata = ?, date = ? WHERE id = ?");
+					$stmt = $db->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, category_id = ?, cover_photo = ?, published = ?, scheduled_date = ?, description = ?, metadata = ?, date = ?, gallery = ? WHERE id = ?");
 					if (!$stmt) {
 						throw new Exception('Failed to prepare UPDATE statement: ' . $db->lastErrorMsg());
 					}
@@ -771,7 +1329,8 @@ function blog_admin(){
 					$stmt->bindValue(8, $description, SQLITE3_TEXT);
 					$stmt->bindValue(9, $metadata, SQLITE3_TEXT);
 					$stmt->bindValue(10, $date, SQLITE3_INTEGER);
-					$stmt->bindValue(11, $post_id, SQLITE3_INTEGER);
+					$stmt->bindValue(11, $gallery, SQLITE3_TEXT);
+					$stmt->bindValue(12, $post_id, SQLITE3_INTEGER);
 					$stmt->execute();
 
 					// Delete existing tags
@@ -1047,14 +1606,14 @@ function blog_admin(){
 
 		echo '<script>document.querySelector(".root_page").value = "' . get_setting($db, 'root_page') . '"</script>';
 
-		echo '<input type="submit" style="margin-top:30px" value="' . i18n_r('simpleBlog/SAVE_SETTINGS') . '">';
+		echo '<input type="submit" style="background:#00AA2C; margin-top:30px" value="' . i18n_r('simpleBlog/SAVE_SETTINGS') . '">';
 
 		echo '</form>';
 		echo '</div>';
 
 		echo '<div class="help-section">';
 		echo '<h5>' . i18n_r('simpleBlog/SLUG_ROUTING') . '</h5>';
-		echo '<button  style="background: #0073aa;color:#fff;padding:10px;margin:5px 0"  onclick="copyToClipboard()">Copy to Clipboard</button>';
+		echo '<button  style="border-radius: 4px; background: #0073aa;color:#fff;padding:10px;margin:5px 0"  onclick="copyToClipboard()">Copy to Clipboard</button>';
 		
 		if (get_setting($db, 'root_page') && get_setting($db, 'use_slug_routing')) {
 
@@ -1161,12 +1720,15 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 			echo '
 			<style>
 				.addPhoto{
-					background:#000;
+					background:#0073AA!important;
 					color:#fff;
 					border-radius:5px !important;
 					border:none;
 					padding:10px;
 					margin-bottom:10px;
+				}
+				.addPhoto:hover{
+					background:#006290;
 				}
 				.cur_photo{
 					display:block;
@@ -1198,25 +1760,28 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 			echo '<label>' . i18n_r('simpleBlog/COVER_PHOTO') . ':</label>
 				
 		   <input type="text" name="cover_photo" class="cover_photo">
-				<button class="addPhoto">' . i18n_r('simpleBlog/ADD_PHOTO') . '</button>
+				<button type="button" class="addPhoto">' . i18n_r('simpleBlog/ADD_PHOTO') . '</button>
+				<img src="" style="max-width:200px;display:none" class="cur_photo">
 				<script>
 					document.querySelector(".addPhoto").addEventListener("click", (e) => {
 			e.preventDefault();
-			window.open("' . $SITEURL . 'plugins/simpleBlog/filebrowser/imagebrowser.php?type=images&CKEditor=post-content", "", "left=10,top=10,width=960,height=500");
+			if (window.sbOpenPicker) window.sbOpenPicker("cover_photo");
 			});
 			</script>';
+			echo sb_render_picker_modal($SITEURL);
 
 			echo '<br>';
 
 			echo '<label>' . i18n_r('simpleBlog/DESCRIPTION') . ':</label><textarea name="description"  style="height:150px"></textarea><br>';
 			echo '<label>Metadesc (SEO):</label><textarea name="metadane"  style="height:150px"></textarea><br>';
 			echo '<label>' . i18n_r('simpleBlog/CONTENT') . ':</label><textarea id="post-content" name="content" required rows="10"></textarea><br>';
+			echo sb_gallery_field_html('[]', $SITEURL);
 			echo '<label>' . i18n_r('simpleBlog/STATUS') . ':</label><select name="published" required>';
 			echo '<option value="1">' . i18n_r('simpleBlog/PUBLISHED') . '</option>';
 			echo '<option value="0">' . i18n_r('simpleBlog/DRAFT') . '</option>';
 			echo '</select><br>';
 			echo '<label>' . i18n_r('simpleBlog/SCHEDULED_DATE') . ':</label><input type="datetime-local" name="scheduled_date"><br>';
-			echo '<input type="submit" style="margin-top:20px;" value="' . i18n_r('simpleBlog/ADD_POST') . '">';
+			echo '<input type="submit" style="background:#00AA2C; margin-top:20px;" value="' . i18n_r('simpleBlog/ADD_POST') . '">';
 			echo '</form>';
 			echo '</div>';
 
@@ -1297,11 +1862,14 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 			echo '
 			<style>
 				.addPhoto{
-					background:#000;
+					background:#0073AA;
 					color:#fff;
 					border-radius:5px !important;
 					border:none;
 					padding:10px;
+				}
+				.addPhoto:hover{
+					background:#006290;
 				}
 				.cur_photo{
 					display:block;
@@ -1349,16 +1917,15 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 					<label  style="display:none">' . i18n_r('simpleBlog/TAGS') . ':</label><input type="hidden" name="tags" value="' . htmlspecialchars($tags_str) . '"><br>';
 					echo '
 					<label>' . i18n_r('simpleBlog/COVER_PHOTO') . ':</label> <input type="text" name="cover_photo" value="' . $post['cover_photo'] . '" class="cover_photo">
-			<button class="addPhoto">' . i18n_r('simpleBlog/ADD_PHOTO') . '</button>
+			<button type="button" class="addPhoto">' . i18n_r('simpleBlog/ADD_PHOTO') . '</button>
 			<script>
 				document.querySelector(".addPhoto").addEventListener("click", (e) => {
 				e.preventDefault();
-				window.open("' . $SITEURL . 'plugins/simpleBlog/filebrowser/imagebrowser.php?type=images&CKEditor=post-content", "", "left=10,top=10,width=960,height=500");
+				if (window.sbOpenPicker) window.sbOpenPicker("cover_photo");
 				});
 			</script>';
-					if ($post['cover_photo']) {
-						echo '<br> <img src="' . $GLOBALS['SITEURL'] . $post['cover_photo'] . '" style="max-width:200px" class="cur_photo">';
-					}
+					echo sb_render_picker_modal($SITEURL);
+					echo '<br> <img src="' . ($post['cover_photo'] ? $GLOBALS['SITEURL'] . $post['cover_photo'] : '') . '" style="max-width:200px' . ($post['cover_photo'] ? '' : ';display:none') . '" class="cur_photo">';
 					echo '<br>';
 					echo '<br>';
 
@@ -1366,13 +1933,14 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 					echo '<label>Metadane (dla SEO):</label><textarea name="metadane"  style="height:150px">' . $post['metadata'] . '</textarea><br>';
 
 					echo '<label>' . i18n_r('simpleBlog/CONTENT') . ':</label><textarea name="content" id="post-content" required rows="10">' . htmlspecialchars($post['content']) . '</textarea><br>';
+					echo sb_gallery_field_html($post['gallery'] ?? '[]', $SITEURL);
 					echo '<label>' . i18n_r('simpleBlog/STATUS') . ':</label><select name="published" required>';
 					echo '<option value="1"' . ($post['published'] == 1 ? ' selected' : '') . '>' . i18n_r('simpleBlog/PUBLISHED') . '</option>';
 					echo '<option value="0"' . ($post['published'] == 0 ? ' selected' : '') . '>' . i18n_r('simpleBlog/DRAFT') . '</option>';
 					echo '</select><br>';
 					$scheduled_date = $post['scheduled_date'] ? date('Y-m-d\TH:i', $post['scheduled_date']) : '';
 					echo '<label>' . i18n_r('simpleBlog/SCHEDULED_DATE') . ':</label><input type="datetime-local" name="scheduled_date" value="' . htmlspecialchars($scheduled_date) . '"><br>';
-					echo '<input type="submit" style="margin-top:20px;" style="margin-top:20px" value="' . i18n_r('simpleBlog/UPDATE_POST') . '">';
+					echo '<input type="submit" style="background:#00AA2C; margin-top:20px;" style="margin-top:20px" value="' . i18n_r('simpleBlog/UPDATE_POST') . '">';
 					echo '</form>';
 					echo '</div>';
 
@@ -1777,6 +2345,7 @@ function get_blog_content($slug = null){
 				$output .= "<img class='blogcover' src='" . $GLOBALS['SITEURL'] . "{$result['cover_photo']}' alt='{$result['title']}' style='max-width:100%'>";
 			}
 			$output .= "<div class='blogcontent'>{$result['content']}</div>";
+			$output .= sb_render_public_gallery($result['gallery'] ?? '', $GLOBALS['SITEURL'], $result['id'], $result['title']);
 			$output .= "{$tags_str}";
 
 			if (get_setting($db, 'show_comments')) {
