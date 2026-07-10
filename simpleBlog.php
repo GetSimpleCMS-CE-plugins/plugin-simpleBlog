@@ -6,7 +6,7 @@ i18n_merge('simpleBlog') || i18n_merge('simpleBlog', 'en_US');
 register_plugin(
 	$thisfile,
 	'SimpleBlog',
-	'3.2',
+	'3.3',
 	'Multicolor',
 	'http://ko-fi.com/multicolorplugins',
 	'SimpleBlog for Simple CMS! Based on Sqlite3',
@@ -65,6 +65,7 @@ function blog_init_db(){
 			scheduled_date INTEGER,
 			description TEXT,
 			gallery TEXT,
+			updated_at INTEGER,
 			FOREIGN KEY (category_id) REFERENCES categories(id)
 		)");
 
@@ -127,6 +128,8 @@ function blog_init_db(){
 		@$db->exec("ALTER TABLE posts ADD COLUMN description TEXT");
 		@$db->exec("ALTER TABLE posts ADD COLUMN metadata TEXT");
 		@$db->exec("ALTER TABLE posts ADD COLUMN gallery TEXT");
+		@$db->exec("ALTER TABLE posts ADD COLUMN updated_at INTEGER");
+		@$db->exec("UPDATE posts SET updated_at = date WHERE updated_at IS NULL");
 		$db->close();
 	}
 
@@ -263,12 +266,13 @@ function generate_slug($title, $db, $table = 'posts', $exclude_id = null){
 	// Replace special characters with their base equivalents
 	$slug = strtr($title, $char_map);
 
-	// Convert to lowercase and remove all special characters except spaces
-	$slug = strtolower(preg_replace('/[^A-Za-z0-9\s]/', '', $slug));
+	// Convert to lowercase and remove all special characters except spaces and hyphens
+	$slug = strtolower(preg_replace('/[^A-Za-z0-9\s-]/', '', $slug));
 
-	// Replace spaces with hyphens, remove multiple consecutive hyphens
+	// Replace spaces with hyphens, remove multiple consecutive hyphens, trim stray edge hyphens
 	$slug = preg_replace('/\s+/', '-', trim($slug));
 	$slug = preg_replace('/-+/', '-', $slug);
+	$slug = trim($slug, '-');
 
 	$base_slug = $slug;
 	$counter = 1;
@@ -313,6 +317,51 @@ function sb_sanitize_gallery_input($raw){
 		$clean[] = $item;
 	}
 	return json_encode(array_values(array_unique($clean)));
+}
+
+/**
+ * Renders a live "X / recommended" character counter beneath a textarea,
+ * turning amber near the limit and red past it. Purely a soft visual guide -
+ * does not block typing past the recommended length.
+ *
+ * @param string $textarea_id  id of the textarea to watch (must already exist in the DOM)
+ * @param int    $recommended  recommended max character count
+ * @return string HTML (a small counter element + inline script)
+ */
+function sb_render_char_counter($textarea_id, $recommended = 160){
+	$id = htmlspecialchars($textarea_id, ENT_QUOTES, 'UTF-8');
+	$counter_id = $id . '-counter';
+
+	$html  = '<div class="sb-char-counter" id="' . $counter_id . '"></div>';
+	$html .= '<style>.sb-char-counter{font-size:.78rem;color:#6b7280;margin:.25rem 0 .5rem}.sb-char-counter.sb-char-warn{color:#b45309}.sb-char-counter.sb-char-over{color:#c0392b}</style>';
+	$html .= '<script>
+	(function(){
+		var ta = document.getElementById(' . json_encode($id) . ');
+		var counter = document.getElementById(' . json_encode($counter_id) . ');
+		var recommended = ' . (int)$recommended . ';
+		if (!ta || !counter) return;
+
+		function update(){
+			var len = ta.value.length;
+			var remaining = recommended - len;
+			var text = len + " / " + recommended + " " + ' . json_encode(i18n_r('simpleBlog/CHARS_LABEL')) . ';
+			if (remaining < 0) {
+				text += " (" + Math.abs(remaining) + " " + ' . json_encode(i18n_r('simpleBlog/CHARS_OVER')) . ' + ")";
+				counter.className = "sb-char-counter sb-char-over";
+			} else if (remaining <= 20) {
+				counter.className = "sb-char-counter sb-char-warn";
+			} else {
+				counter.className = "sb-char-counter";
+			}
+			counter.textContent = text;
+		}
+
+		ta.addEventListener("input", update);
+		update();
+	})();
+	</script>';
+
+	return $html;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1133,7 +1182,7 @@ function blog_admin(){
 		.blog-form input[type="submit"] { background: #0073aa; color: #fff; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
 		.blog-form input[type="submit"]:hover { background: #005177; }
 		.post-list, .category-list { margin-top: 20px; }
-		.post-item, .category-item { background: #fff; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+		.post-item, .category-item { background: #fff; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
 		.post-item a, .category-item a { color: #0073aa; text-decoration: none; margin-left: 10px; }
 		.post-item a:hover, .category-item a:hover { text-decoration: underline; }
 		.category-item form, .post-item form { display: inline; }
@@ -1182,7 +1231,13 @@ function blog_admin(){
 
 			case 'add_post':
 				$title = $_POST['title'];
-				$slug = generate_slug($title, $db);
+				// Use the custom slug field if the user filled it in (and it contains
+				// at least one alphanumeric character); otherwise fall back to the
+				// title, same as before. generate_slug() handles sanitizing +
+				// de-duplicating either way.
+				$slug_input = trim($_POST['slug'] ?? '');
+				$has_custom_slug = $slug_input !== '' && preg_replace('/[^A-Za-z0-9]/', '', $slug_input) !== '';
+				$slug = generate_slug($has_custom_slug ? $slug_input : $title, $db);
 				$content = $_POST['content'];
 				// Jeśli nie wybrano kategorii, znajdź lub utwórz domyślną
 				if (empty($_POST['category_id'])) {
@@ -1206,16 +1261,22 @@ function blog_admin(){
 					$category_id = $_POST['category_id'];
 				}
 				$tags = isset($_POST['tags']) ? explode(',', $_POST['tags']) : [];
-				$date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : time();
+				// Published On: trust the explicit field if the user set one (or the
+				$published_on_input = trim($_POST['published_on'] ?? '');
+				$date = ($published_on_input !== '' && strtotime($published_on_input) !== false)
+					? strtotime($published_on_input)
+					: (!empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : time());
 				$published = $_POST['published'];
 				$scheduled_date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : null;
 				$description = $_POST['description'];
 				$metadata = $_POST['metadane'];
+				// Last Edited On: always the real save time, never user-editable.
+				$updated_at = time();
 
 				$cover_photo = $_POST['cover_photo'];
 				$gallery = sb_sanitize_gallery_input($_POST['gallery'] ?? '');
 
-				$stmt = $db->prepare("INSERT INTO posts (title, slug, content, category_id, cover_photo, date, published, scheduled_date, description ,metadata, gallery) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?,?)");
+				$stmt = $db->prepare("INSERT INTO posts (title, slug, content, category_id, cover_photo, date, published, scheduled_date, description ,metadata, gallery, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?,?,?,?,?)");
 				$stmt->bindValue(1, $title, SQLITE3_TEXT);
 				$stmt->bindValue(2, $slug, SQLITE3_TEXT);
 				$stmt->bindValue(3, $content, SQLITE3_TEXT);
@@ -1227,6 +1288,7 @@ function blog_admin(){
 				$stmt->bindValue(9, $description, SQLITE3_TEXT);
 				$stmt->bindValue(10, $metadata, SQLITE3_TEXT);
 				$stmt->bindValue(11, $gallery, SQLITE3_TEXT);
+				$stmt->bindValue(12, $updated_at, SQLITE3_INTEGER);
 				$stmt->execute();
 				$post_id = $db->lastInsertRowID();
 
@@ -1261,7 +1323,11 @@ function blog_admin(){
 				$post_id = filter_input(INPUT_POST, 'post_id', FILTER_VALIDATE_INT);
 				$title = filter_input(INPUT_POST, 'title', FILTER_UNSAFE_RAW);
 				$content = $_POST['content'] ?? null;
-				$date = !empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : time();
+				// Published On: trust the explicit field (this is the fix for the
+				$published_on_input = trim($_POST['published_on'] ?? '');
+				$date = ($published_on_input !== '' && strtotime($published_on_input) !== false)
+					? strtotime($published_on_input)
+					: (!empty($_POST['scheduled_date']) ? strtotime($_POST['scheduled_date']) : time());
 				$category_id_input = filter_input(INPUT_POST, 'category_id', FILTER_VALIDATE_INT);
 				if (empty($category_id_input)) {
 					$stmt = $db->prepare("SELECT id FROM categories WHERE slug = 'uncategorized'");
@@ -1293,6 +1359,8 @@ function blog_admin(){
 					$scheduled_date = null; // Handle invalid date
 				}
 				$tags = isset($_POST['tags']) ? array_map('trim', explode(',', filter_var($_POST['tags'], FILTER_UNSAFE_RAW))) : [];
+				// Last Edited On: always the real save time, never user-editable.
+				$updated_at = time();
 
 				// Check for required fields
 				if (!$post_id || !$title || !$content) {
@@ -1308,14 +1376,18 @@ function blog_admin(){
 				$existing_post = $stmt->execute()->fetchArray();
 				$cover_photo = $cover_photo ?: ($existing_post['cover_photo'] ?? null);
 
-				// Generate slug
-				$slug = generate_slug($title, $db, 'posts', $post_id);
+				// Generate slug - use the custom slug field if the user filled it in
+				// (and it contains at least one alphanumeric character); otherwise
+				// fall back to the title, same as before.
+				$slug_input = trim($_POST['slug'] ?? '');
+				$has_custom_slug = $slug_input !== '' && preg_replace('/[^A-Za-z0-9]/', '', $slug_input) !== '';
+				$slug = generate_slug($has_custom_slug ? $slug_input : $title, $db, 'posts', $post_id);
 
 				// Start transaction
 				$db->exec('BEGIN TRANSACTION');
 				try {
 					// Update post
-					$stmt = $db->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, category_id = ?, cover_photo = ?, published = ?, scheduled_date = ?, description = ?, metadata = ?, date = ?, gallery = ? WHERE id = ?");
+					$stmt = $db->prepare("UPDATE posts SET title = ?, slug = ?, content = ?, category_id = ?, cover_photo = ?, published = ?, scheduled_date = ?, description = ?, metadata = ?, date = ?, gallery = ?, updated_at = ? WHERE id = ?");
 					if (!$stmt) {
 						throw new Exception('Failed to prepare UPDATE statement: ' . $db->lastErrorMsg());
 					}
@@ -1330,7 +1402,8 @@ function blog_admin(){
 					$stmt->bindValue(9, $metadata, SQLITE3_TEXT);
 					$stmt->bindValue(10, $date, SQLITE3_INTEGER);
 					$stmt->bindValue(11, $gallery, SQLITE3_TEXT);
-					$stmt->bindValue(12, $post_id, SQLITE3_INTEGER);
+					$stmt->bindValue(12, $updated_at, SQLITE3_INTEGER);
+					$stmt->bindValue(13, $post_id, SQLITE3_INTEGER);
 					$stmt->execute();
 
 					// Delete existing tags
@@ -1734,6 +1807,16 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 					display:block;
 					margin:10px 0;
 				}
+				.datetime{
+					padding:5px 8px;
+					border-radius:5px;
+				}
+				.sb-field-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+				.sb-field-row > div{flex:1;min-width:200px}
+				.sb-field-row label{display:block;margin-bottom:4px}
+				.sb-field-row input[type="text"],.sb-field-row input.datetime,.sb-field-row select{width:100%;box-sizing:border-box}
+				.sb-field-row p{margin:0}
+				.cke_contents.cke_reset{height:300px!important;}
 			</style>';
 
 			global $SITEURL;
@@ -1741,9 +1824,13 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 			echo '<div class="blog-form">';
 			echo '<form method="post" enctype="multipart/form-data">';
 			echo '<input type="hidden" name="action" value="add_post">';
-			echo '<label>' . i18n_r('simpleBlog/TITLE') . ':</label><input type="text" name="title" required><br>';
-			echo '<label>' . i18n_r('simpleBlog/CATEGORY') . ':</label>';
+			echo '<div class="sb-field-row">';
+			echo '<div><label>' . i18n_r('simpleBlog/TITLE') . ':</label><input type="text" name="title" required></div>';
+			echo '<div style="opacity:70%"><label>' . i18n_r('simpleBlog/SLUG') . ':</label><input type="text" name="slug" placeholder="' . htmlspecialchars(strip_tags(i18n_r('simpleBlog/SLUG_PLACEHOLDER')), ENT_QUOTES, 'UTF-8') . '"></div>';
+			echo '</div>';
 
+			echo '<div class="sb-field-row">';
+			echo '<div><label>' . i18n_r('simpleBlog/CATEGORY') . ':</label>';
 			$categories = $db->query("SELECT * FROM categories");
 			if (!$categories) {
 				echo "<p style='color:red'>First, create a category!</p>";
@@ -1754,8 +1841,29 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 				}
 				echo '</select>';
 			};
+			echo '</div>';
+			echo '<div><label>' . i18n_r('simpleBlog/STATUS') . ':</label><select name="published" required>';
+			echo '<option value="1">' . i18n_r('simpleBlog/PUBLISHED') . '</option>';
+			echo '<option value="0">' . i18n_r('simpleBlog/DRAFT') . '</option>';
+			echo '</select></div>';
+			echo '</div>';
 
-			echo '<br>';
+			echo '<div class="sb-field-row">';
+			echo '<div><label>' . i18n_r('simpleBlog/SCHEDULED_DATE') . ':</label><input class="datetime" type="datetime-local" name="scheduled_date" id="sb-scheduled-date"></div>';
+			echo '<div><label>' . i18n_r('simpleBlog/PUBLISHED_ON') . ':</label><input class="datetime" type="datetime-local" name="published_on" id="sb-published-on" value="' . date('Y-m-d\TH:i') . '"></div>';
+			echo '</div>';
+			echo '<script>
+			(function(){
+				var pub = document.getElementById("sb-published-on");
+				var sched = document.getElementById("sb-scheduled-date");
+				if (!pub || !sched) return;
+				var pubTouched = false;
+				pub.addEventListener("input", function(){ pubTouched = true; });
+				sched.addEventListener("change", function(){
+					if (!pubTouched && sched.value) pub.value = sched.value;
+				});
+			})();
+			</script>';
 			echo '<label style="display:none">' . i18n_r('simpleBlog/TAGS') . ':</label><input type="hidden" name="tags"><br>';
 			echo '<label>' . i18n_r('simpleBlog/COVER_PHOTO') . ':</label>
 				
@@ -1772,15 +1880,12 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 
 			echo '<br>';
 
-			echo '<label>' . i18n_r('simpleBlog/DESCRIPTION') . ':</label><textarea name="description"  style="height:150px"></textarea><br>';
-			echo '<label>Metadesc (SEO):</label><textarea name="metadane"  style="height:150px"></textarea><br>';
-			echo '<label>' . i18n_r('simpleBlog/CONTENT') . ':</label><textarea id="post-content" name="content" required rows="10"></textarea><br>';
+			echo '<label>' . i18n_r('simpleBlog/DESCRIPTION') . ':</label><textarea name="description"  style="height:100px"></textarea><br>';
+			echo '<label>Metadesc (SEO):</label><textarea name="metadane" id="sb-metadane" style="height:70px"></textarea>';
+			echo sb_render_char_counter('sb-metadane', 160);
+			echo '<br>';
+			echo '<label>' . i18n_r('simpleBlog/CONTENT') . ':</label><textarea id="post-content" name="content" required rows="5"></textarea><br>';
 			echo sb_gallery_field_html('[]', $SITEURL);
-			echo '<label>' . i18n_r('simpleBlog/STATUS') . ':</label><select name="published" required>';
-			echo '<option value="1">' . i18n_r('simpleBlog/PUBLISHED') . '</option>';
-			echo '<option value="0">' . i18n_r('simpleBlog/DRAFT') . '</option>';
-			echo '</select><br>';
-			echo '<label>' . i18n_r('simpleBlog/SCHEDULED_DATE') . ':</label><input type="datetime-local" name="scheduled_date"><br>';
 			echo '<input type="submit" style="background:#00AA2C; margin-top:20px;" value="' . i18n_r('simpleBlog/ADD_POST') . '">';
 			echo '</form>';
 			echo '</div>';
@@ -1823,7 +1928,7 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 					filebrowserBrowseUrl: "filebrowser.php?type=all",
 					filebrowserImageBrowseUrl: "filebrowser.php?type=images",
 					filebrowserWindowWidth: "730",
-					filebrowserWindowHeight: "500"
+					filebrowserWindowHeight: "350"
 					' . $toolbar . $options . '
 							
 				});
@@ -1875,6 +1980,16 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 					display:block;
 					margin:10px 0;
 				}
+				.datetime{
+					padding:5px 8px;
+					border-radius:5px;
+				}
+				.sb-field-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+				.sb-field-row > div{flex:1;min-width:200px}
+				.sb-field-row label{display:block;margin-bottom:4px}
+				.sb-field-row input[type="text"],.sb-field-row input.datetime,.sb-field-row select{width:100%;box-sizing:border-box}
+				.sb-field-row p{margin:0}
+				.cke_contents.cke_reset{height:300px!important;}
 			</style>';
 
 			if (isset($_GET['successpostcreated'])) {
@@ -1903,15 +2018,46 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 					echo '<form method="post" enctype="multipart/form-data">';
 					echo '<input type="hidden" name="action" value="edit_post">';
 					echo '<input type="hidden" name="post_id" value="' . $post['id'] . '">';
-					echo '<label>' . i18n_r('simpleBlog/TITLE') . ':</label><input type="text" name="title" value="' . htmlspecialchars($post['title']) . '" required><br>';
-					echo '<label>' . i18n_r('simpleBlog/CATEGORY') . ':</label><select name="category_id" required>';
+					echo '<div class="sb-field-row">';
+					echo '<div><label>' . i18n_r('simpleBlog/TITLE') . ':</label><input type="text" name="title" value="' . htmlspecialchars($post['title']) . '" required></div>';
+					echo '<div style="opacity:70%"><label>' . i18n_r('simpleBlog/SLUG') . ':</label><input type="text" name="slug" value="' . htmlspecialchars($post['slug']) . '" placeholder="' . htmlspecialchars(strip_tags(i18n_r('simpleBlog/SLUG_PLACEHOLDER')), ENT_QUOTES, 'UTF-8') . '"></div>';
+					echo '</div>';
 
+					echo '<div class="sb-field-row">';
+					echo '<div><label>' . i18n_r('simpleBlog/CATEGORY') . ':</label><select name="category_id" required>';
 					$categories = $db->query("SELECT * FROM categories");
 					while ($cat = $categories->fetchArray()) {
 						$selected = $cat['id'] == $post['category_id'] ? ' selected' : '';
 						echo "<option value='{$cat['id']}'{$selected}>{$cat['name']}</option>";
 					}
-					echo '</select><br>';
+					echo '</select></div>';
+					echo '<div><label>' . i18n_r('simpleBlog/STATUS') . ':</label><select name="published" required>';
+					echo '<option value="1"' . ($post['published'] == 1 ? ' selected' : '') . '>' . i18n_r('simpleBlog/PUBLISHED') . '</option>';
+					echo '<option value="0"' . ($post['published'] == 0 ? ' selected' : '') . '>' . i18n_r('simpleBlog/DRAFT') . '</option>';
+					echo '</select></div>';
+					echo '</div>';
+
+					echo '<div class="sb-field-row">';
+					$scheduled_date = $post['scheduled_date'] ? date('Y-m-d\TH:i', $post['scheduled_date']) : '';
+					echo '<div><label>' . i18n_r('simpleBlog/SCHEDULED_DATE') . ':</label><input class="datetime" type="datetime-local" name="scheduled_date" id="sb-scheduled-date" value="' . htmlspecialchars($scheduled_date) . '"></div>';
+					$published_on = $post['date'] ? date('Y-m-d\TH:i', $post['date']) : date('Y-m-d\TH:i');
+					echo '<div><label>' . i18n_r('simpleBlog/PUBLISHED_ON') . ':</label><input class="datetime" type="datetime-local" name="published_on" id="sb-published-on" value="' . htmlspecialchars($published_on) . '"></div>';
+					if (!empty($post['updated_at'])) {
+						echo '<div><label>' . i18n_r('simpleBlog/LAST_EDITED_ON') . ':</label><p style="padding:5px 0;color:#555">' . htmlspecialchars(date('Y-m-d H:i', $post['updated_at'])) . '</p></div>';
+					}
+					echo '</div>';
+					echo '<script>
+					(function(){
+						var pub = document.getElementById("sb-published-on");
+						var sched = document.getElementById("sb-scheduled-date");
+						if (!pub || !sched) return;
+						var pubTouched = false;
+						pub.addEventListener("input", function(){ pubTouched = true; });
+						sched.addEventListener("change", function(){
+							if (!pubTouched && sched.value) pub.value = sched.value;
+						});
+					})();
+					</script>';
 
 					echo '
 					<label  style="display:none">' . i18n_r('simpleBlog/TAGS') . ':</label><input type="hidden" name="tags" value="' . htmlspecialchars($tags_str) . '"><br>';
@@ -1929,17 +2075,13 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 					echo '<br>';
 					echo '<br>';
 
-					echo '<label>' . i18n_r('simpleBlog/DESCRIPTION') . ':</label><textarea name="description" style="height:150px">' . htmlspecialchars($post['description']) . '</textarea><br>';
-					echo '<label>Metadane (dla SEO):</label><textarea name="metadane"  style="height:150px">' . $post['metadata'] . '</textarea><br>';
+					echo '<label>' . i18n_r('simpleBlog/DESCRIPTION') . ':</label><textarea name="description" style="height:100px">' . htmlspecialchars($post['description']) . '</textarea><br>';
+					echo '<label>Metadata (for SEO):</label><textarea name="metadane" id="sb-metadane-edit" style="height:70px">' . $post['metadata'] . '</textarea>';
+					echo sb_render_char_counter('sb-metadane-edit', 160);
+					echo '<br>';
 
-					echo '<label>' . i18n_r('simpleBlog/CONTENT') . ':</label><textarea name="content" id="post-content" required rows="10">' . htmlspecialchars($post['content']) . '</textarea><br>';
+					echo '<label>' . i18n_r('simpleBlog/CONTENT') . ':</label><textarea name="content" id="post-content" required rows="5">' . htmlspecialchars($post['content']) . '</textarea><br>';
 					echo sb_gallery_field_html($post['gallery'] ?? '[]', $SITEURL);
-					echo '<label>' . i18n_r('simpleBlog/STATUS') . ':</label><select name="published" required>';
-					echo '<option value="1"' . ($post['published'] == 1 ? ' selected' : '') . '>' . i18n_r('simpleBlog/PUBLISHED') . '</option>';
-					echo '<option value="0"' . ($post['published'] == 0 ? ' selected' : '') . '>' . i18n_r('simpleBlog/DRAFT') . '</option>';
-					echo '</select><br>';
-					$scheduled_date = $post['scheduled_date'] ? date('Y-m-d\TH:i', $post['scheduled_date']) : '';
-					echo '<label>' . i18n_r('simpleBlog/SCHEDULED_DATE') . ':</label><input type="datetime-local" name="scheduled_date" value="' . htmlspecialchars($scheduled_date) . '"><br>';
 					echo '<input type="submit" style="background:#00AA2C; margin-top:20px;" style="margin-top:20px" value="' . i18n_r('simpleBlog/UPDATE_POST') . '">';
 					echo '</form>';
 					echo '</div>';
@@ -1982,7 +2124,7 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 							filebrowserBrowseUrl: "filebrowser.php?type=all",
 							filebrowserImageBrowseUrl: "filebrowser.php?type=images",
 							filebrowserWindowWidth: "730",
-							filebrowserWindowHeight: "500"
+							filebrowserWindowHeight: "350"
 							' . $toolbar . $options . '
 									
 						});
@@ -2101,6 +2243,7 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 					flex-direction: row;
 					align-items: center;
 					justify-content: space-between;
+					font-size:.85rem;
 				}
 				.post-item button {
 					background: red;
@@ -2137,6 +2280,11 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 				#searchInput {
 					width:100%;padding:10px !important;box-sizing:border-box;
 				}
+				.sb-pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:600;line-height:1.7;white-space:nowrap;vertical-align:middle}
+				.sb-pill-published{background:#dcfce7;color:#15803d}
+				.sb-pill-draft{background:#f3f4f6;color:#4b5563}
+				.sb-pill-scheduled{background:#e0e7ff;color:#4338ca}
+				.sb-post-meta{color:#6b7280;font-size:.75rem;margin-top:2px}
 			</style>';
 
 			echo '<div class="search-container">';
@@ -2177,11 +2325,18 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 			foreach ($displayed_posts as $row) {
 				$tags_str = !empty($row['tags']) ? ' | ' . i18n_r('simpleBlog/TAGS') . ': ' . implode(', ', $row['tags']) : '';
 
+				$status_pill = $row['published']
+					? '<span class="sb-pill sb-pill-published">' . i18n_r('simpleBlog/PUBLISHED') . '</span>'
+					: '<span class="sb-pill sb-pill-draft">' . i18n_r('simpleBlog/DRAFT') . '</span>';
+				$scheduled_pill = $row['scheduled_date']
+					? ' <span class="sb-pill sb-pill-scheduled">' . i18n_r('simpleBlog/SCHEDULED') . ': ' . date('Y-m-d H:i', $row['scheduled_date']) . '</span>'
+					: '';
+
 				echo '<div class="post-item" data-title="' . htmlspecialchars($row['title']) . '" data-category="' . htmlspecialchars($row['category_name'] ?? '') . '">';
-				echo "<p><b>{$row['title']}</b> - {$row['category_name']} - " .
-					date('Y-m-d', $row['date']) .
-					" [" . ($row['published'] ? i18n_r('simpleBlog/PUBLISHED') : i18n_r('simpleBlog/DRAFT')) . "]" .
-					($row['scheduled_date'] ? " | " . i18n_r('simpleBlog/SCHEDULED') . ": " . date('Y-m-d H:i', $row['scheduled_date']) : "") .
+				echo "<p><b>{$row['title']}</b> - {$row['category_name']} &nbsp; " . $status_pill . $scheduled_pill . "</p>";
+				echo "<p class='sb-post-meta'>" .
+					i18n_r('simpleBlog/PUBLISHED_ON') . ": " . date('Y-m-d H:i', $row['date']) .
+					(!empty($row['updated_at']) ? " <br> " . i18n_r('simpleBlog/LAST_EDITED_ON') . ": " . date('Y-m-d H:i', $row['updated_at']) : "") .
 					"</p>
 			<div class='btn-row'> 
 				<a target='_blank' href='" . $SITEURL . get_setting($db, 'root_page') . "?post={$row['slug']}'>
