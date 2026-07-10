@@ -6,7 +6,7 @@ i18n_merge('simpleBlog') || i18n_merge('simpleBlog', 'en_US');
 register_plugin(
 	$thisfile,
 	'SimpleBlog',
-	'3.3',
+	'3.4',
 	'Multicolor',
 	'http://ko-fi.com/multicolorplugins',
 	'SimpleBlog for Simple CMS! Based on Sqlite3',
@@ -365,6 +365,19 @@ function sb_render_char_counter($textarea_id, $recommended = 160){
 // IMAGE PICKER  -  uploads / thumbnails / browsing
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Resolves a stored image value to a browser-usable URL.
+ * @param string $path Stored value - either a relative path or a full URL
+ * @param string $SITEURL Site base URL
+ * @return string
+ */
+function sb_resolve_image_url($path, $SITEURL) {
+	$path = (string)$path;
+	if ($path === '') return '';
+	if (preg_match('#^(https?:)?//#i', $path)) return $path;
+	return $SITEURL . $path;
+}
+
 function sb_thumb_url($filename, $SITEURL) {
 	if (strpos($filename, 'data/uploads/') === 0) {
 		$filename = substr($filename, strlen('data/uploads/'));
@@ -494,6 +507,7 @@ function sb_render_picker_modal($SITEURL){
 			<div class="sb-picker-tabs">
 				<button type="button" class="sb-picker-tab active" data-tab="browse">' . i18n_r('simpleBlog/PICKER_BROWSE') . '</button>
 				<button type="button" class="sb-picker-tab" data-tab="upload">' . i18n_r('simpleBlog/PICKER_UPLOAD') . '</button>
+				<button type="button" class="sb-picker-tab" data-tab="remote" id="sb-picker-tab-remote" style="display:none;">' . i18n_r('simpleBlog/PICKER_REMOTE') . '</button>
 			</div>
 
 			<div class="sb-picker-pane" id="sb-picker-browse">
@@ -510,6 +524,13 @@ function sb_render_picker_modal($SITEURL){
 				</label>
 				<input type="file" id="sb-picker-upload-input" accept="image/png,image/jpeg,image/gif,image/webp" multiple style="display:none;">
 				<div class="sb-picker-upload-status" id="sb-picker-upload-status"></div>
+			</div>
+
+			<div class="sb-picker-pane" id="sb-picker-remote" style="display:none;">
+				<label class="sb-picker-remote-label" for="sb-picker-remote-input">' . i18n_r('simpleBlog/PICKER_REMOTE_LABEL') . '</label>
+				<input type="text" id="sb-picker-remote-input" class="sb-picker-remote-input" placeholder="https://example.com/image.jpg">
+				<button type="button" class="sb-picker-remote-use">' . i18n_r('simpleBlog/PICKER_REMOTE_USE') . '</button>
+				<div class="sb-picker-remote-status" id="sb-picker-remote-status"></div>
 			</div>
 		</div>
 	</div>';
@@ -552,6 +573,13 @@ function sb_render_picker_modal($SITEURL){
 	.sb-picker-upload-area{display:flex;align-items:center;justify-content:center;border:2px dashed #d0d5dd;border-radius:9px;padding:2.5rem 1.5rem;text-align:center;background:#fafafa;cursor:pointer;font-size:.875rem;color:#6b7280;font-weight:600}
 	.sb-picker-upload-area:hover{border-color:#2764e7;background:#f8faff;color:#2764e7}
 	.sb-picker-upload-status{font-size:.8rem;color:#6b7280;margin-top:.75rem}
+	
+	.sb-picker-remote-label{display:block;font-size:.8125rem;color:#374151;font-weight:600;margin-bottom:.5rem}
+	.sb-picker-remote-input{width:100%;box-sizing:border-box;padding:.55rem .75rem;border:1px solid #d0d5dd;border-radius:6px;font-size:.875rem;font-family:inherit;margin-bottom:.75rem}
+	.sb-picker-remote-input:focus{outline:none;border-color:#2764e7;box-shadow:0 0 0 3px rgba(39,100,231,.1)}
+	.sb-picker-remote-use{background:#2764e7;color:#fff;border:none;padding:.55rem 1.2rem;border-radius:6px;font-size:.875rem;font-weight:600;cursor:pointer}
+	.sb-picker-remote-use:hover{background:#0094f0}
+	.sb-picker-remote-status{font-size:.8rem;color:#c0392b;margin-top:.6rem}
 	.sb-picker-loading{grid-column:1/-1;text-align:center;padding:2.5rem;color:#9ca3af;font-size:.875rem}
 	</style>';
 
@@ -567,6 +595,10 @@ function sb_render_picker_modal($SITEURL){
 		var uploadIn = document.getElementById("sb-picker-upload-input");
 		var uploadSt = document.getElementById("sb-picker-upload-status");
 		var closeBtn = document.getElementById("sb-picker-close");
+		var remoteTabBtn = document.getElementById("sb-picker-tab-remote");
+		var remoteIn = document.getElementById("sb-picker-remote-input");
+		var remoteSt = document.getElementById("sb-picker-remote-status");
+		var remoteUseBtn = document.querySelector(".sb-picker-remote-use");
 
 		var state = { mode: "cover_photo", images: [], folder: "" };
 
@@ -654,7 +686,9 @@ function sb_render_picker_modal($SITEURL){
 		}
 
 		function select(filename) {
-			var stored = "data/uploads/" + filename;
+			// Browse/upload hand this a bare uploads-relative path
+			var isAbsolute = /^(https?:)?\/\//i.test(filename);
+			var stored = isAbsolute ? filename : "data/uploads/" + filename;
 			if (state.mode === "gallery") {
 				if (typeof window.sbAddGalleryImage === "function") window.sbAddGalleryImage(stored);
 			} else {
@@ -662,7 +696,7 @@ function sb_render_picker_modal($SITEURL){
 				if (el) el.value = stored;
 				var preview = document.querySelector(".cur_photo");
 				if (preview) {
-					preview.setAttribute("src", ' . json_encode($SITEURL) . ' + stored);
+					preview.setAttribute("src", isAbsolute ? stored : (' . json_encode($SITEURL) . ' + stored));
 					preview.style.display = "";
 				}
 				close();
@@ -677,6 +711,12 @@ function sb_render_picker_modal($SITEURL){
 			document.querySelectorAll(".sb-picker-tab").forEach(function(b, i){ b.classList.toggle("active", i === 0); });
 			document.getElementById("sb-picker-browse").style.display = "";
 			document.getElementById("sb-picker-upload").style.display = "none";
+			document.getElementById("sb-picker-remote").style.display = "none";
+			// Remote URL only makes sense for a single cover photo, not the gallery
+			// picker (gallery values must stay within data/uploads/ to be sanitized).
+			if (remoteTabBtn) remoteTabBtn.style.display = (state.mode === "cover_photo") ? "" : "none";
+			if (remoteIn) remoteIn.value = "";
+			if (remoteSt) remoteSt.textContent = "";
 			if (modal) modal.style.display = "flex";
 			load();
 		}
@@ -697,7 +737,22 @@ function sb_render_picker_modal($SITEURL){
 				var tab = btn.dataset.tab;
 				document.getElementById("sb-picker-browse").style.display = tab === "browse" ? "" : "none";
 				document.getElementById("sb-picker-upload").style.display = tab === "upload" ? "" : "none";
+				document.getElementById("sb-picker-remote").style.display = tab === "remote" ? "" : "none";
 			});
+		});
+
+		function useRemoteUrl() {
+			var url = (remoteIn && remoteIn.value ? remoteIn.value : "").trim();
+			if (!/^https?:\/\//i.test(url)) {
+				if (remoteSt) remoteSt.textContent = ' . json_encode(i18n_r('simpleBlog/PICKER_REMOTE_INVALID')) . ';
+				return;
+			}
+			if (remoteSt) remoteSt.textContent = "";
+			select(url);
+		}
+		if (remoteUseBtn) remoteUseBtn.addEventListener("click", useRemoteUrl);
+		if (remoteIn) remoteIn.addEventListener("keydown", function(e){
+			if (e.key === "Enter") { e.preventDefault(); useRemoteUrl(); }
 		});
 
 		if (grid) grid.addEventListener("click", function(e){
@@ -1054,13 +1109,13 @@ function get_newPostListFull($number){
 
 		if (get_setting($db, 'use_slug_routing')) {
 			echo '<li>
-			  <a href="' . $SITEURL . get_setting($db, 'root_page') . '/' . $row['slug'] . '"> <img class="coverphoto" src="' . $SITEURL . $row['cover_photo'] . '"></a>
+			  <a href="' . $SITEURL . get_setting($db, 'root_page') . '/' . $row['slug'] . '"> <img class="coverphoto" src="' . sb_resolve_image_url($row['cover_photo'], $SITEURL) . '"></a>
 			<a href="' . $SITEURL . get_setting($db, 'root_page') . '/' . $row['slug'] . '"><h5>' . $row['title'] . '</h5></a>
 			<p>' . $row['description'] . '</p>
 			</li>';
 		} else {
 			echo '<li>
-			  <a href="' . $SITEURL . 'index.php?id=' . get_setting($db, 'root_page') . '&post=' . $row['slug'] . '"> <img class="coverphoto" src="' . $SITEURL . $row['cover_photo'] . '"></a>
+			  <a href="' . $SITEURL . 'index.php?id=' . get_setting($db, 'root_page') . '&post=' . $row['slug'] . '"> <img class="coverphoto" src="' . sb_resolve_image_url($row['cover_photo'], $SITEURL) . '"></a>
 
 			<a href="' . $SITEURL . 'index.php?id=' . get_setting($db, 'root_page') . '&post=' . $row['slug'] . '">' . $row['title'] . '</a>
 			  <p>' . $row['description'] . '</p>
@@ -1350,15 +1405,6 @@ function blog_admin(){
 				if (!$post_id || !$title || !$content) {
 					die('<div class="notification error">Required fields are missing.</div>');
 				}
-
-				// Get existing cover photo if none provided
-				$stmt = $db->prepare("SELECT cover_photo FROM posts WHERE id = ?");
-				if (!$stmt) {
-					die('<div class="notification error">Failed to prepare statement: ' . $db->lastErrorMsg() . '</div>');
-				}
-				$stmt->bindValue(1, $post_id, SQLITE3_INTEGER);
-				$existing_post = $stmt->execute()->fetchArray();
-				$cover_photo = $cover_photo ?: ($existing_post['cover_photo'] ?? null);
 
 				// Generate slug - use the custom slug field if the user filled it in
 				// (and it contains at least one alphanumeric character); otherwise
@@ -2020,7 +2066,7 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 				});
 			</script>';
 					echo sb_render_picker_modal($SITEURL);
-					echo '<br> <img src="' . ($post['cover_photo'] ? $GLOBALS['SITEURL'] . $post['cover_photo'] : '') . '" style="max-width:200px' . ($post['cover_photo'] ? '' : ';display:none') . '" class="cur_photo">';
+					echo '<br> <img src="' . ($post['cover_photo'] ? sb_resolve_image_url($post['cover_photo'], $GLOBALS['SITEURL']) : '') . '" style="max-width:200px' . ($post['cover_photo'] ? '' : ';display:none') . '" class="cur_photo">';
 					echo '<br>';
 					echo '<br>';
 
@@ -2400,7 +2446,7 @@ function get_blog_content($slug = null){
 			}
 
 			if ($result['cover_photo']) {
-				$output .= "<img class='blogcover' src='" . $GLOBALS['SITEURL'] . "{$result['cover_photo']}' alt='{$result['title']}' style='max-width:100%'>";
+				$output .= "<img class='blogcover' src='" . sb_resolve_image_url($result['cover_photo'], $GLOBALS['SITEURL']) . "' alt='{$result['title']}' style='max-width:100%'>";
 			}
 			$output .= "<div class='blogcontent'>{$result['content']}</div>";
 			$output .= sb_render_public_gallery($result['gallery'] ?? '', $GLOBALS['SITEURL'], $result['id'], $result['title']);
@@ -2479,9 +2525,9 @@ function get_blog_content($slug = null){
 			$output .= "<div class='blogitem" . ($row['cover_photo'] ? ' withcover' : '') . "'>";
 			if ($row['cover_photo']) {
 				if (get_setting($db, 'use_slug_routing')) {
-					$output .= "<a href='" . $GLOBALS['SITEURL'] . get_setting($db, 'root_page') . "/{$row['slug']}'> <img class='blogcover' src='" . $GLOBALS['SITEURL'] . "{$row['cover_photo']}' alt='{$row['title']}' ></a>";
+					$output .= "<a href='" . $GLOBALS['SITEURL'] . get_setting($db, 'root_page') . "/{$row['slug']}'> <img class='blogcover' src='" . sb_resolve_image_url($row['cover_photo'], $GLOBALS['SITEURL']) . "' alt='{$row['title']}' ></a>";
 				} else {
-					$output .= "<a href='" . $GLOBALS['SITEURL'] . 'index.php?id=' . get_setting($db, 'root_page') . "&post={$row['slug']}'> <img src='" . $GLOBALS['SITEURL'] . "{$row['cover_photo']}' alt='{$row['title']}' class='blogcover'></a>";
+					$output .= "<a href='" . $GLOBALS['SITEURL'] . 'index.php?id=' . get_setting($db, 'root_page') . "&post={$row['slug']}'> <img src='" . sb_resolve_image_url($row['cover_photo'], $GLOBALS['SITEURL']) . "' alt='{$row['title']}' class='blogcover'></a>";
 				}
 			}
 
@@ -2540,9 +2586,9 @@ function get_blog_content($slug = null){
 			$output .= "<div class='blogitem" . ($row['cover_photo'] ? ' withcover' : '') . "'>";
 			if ($row['cover_photo']) {
 				if (get_setting($db, 'use_slug_routing')) {
-					$output .= "<a href='" . $GLOBALS['SITEURL'] . get_setting($db, 'root_page') . "/{$row['slug']}'> <img src='" . $GLOBALS['SITEURL'] . "{$row['cover_photo']}' alt='{$row['title']}'  class='blogcover'></a>";
+					$output .= "<a href='" . $GLOBALS['SITEURL'] . get_setting($db, 'root_page') . "/{$row['slug']}'> <img src='" . sb_resolve_image_url($row['cover_photo'], $GLOBALS['SITEURL']) . "' alt='{$row['title']}'  class='blogcover'></a>";
 				} else {
-					$output .= "<a href='" . $GLOBALS['SITEURL'] . 'index.php?id=' . get_setting($db, 'root_page') . "&post={$row['slug']}'> <img src='" . $GLOBALS['SITEURL'] . "{$row['cover_photo']}' alt='{$row['title']}' class='blogcover'></a>";
+					$output .= "<a href='" . $GLOBALS['SITEURL'] . 'index.php?id=' . get_setting($db, 'root_page') . "&post={$row['slug']}'> <img src='" . sb_resolve_image_url($row['cover_photo'], $GLOBALS['SITEURL']) . "' alt='{$row['title']}' class='blogcover'></a>";
 				}
 			}
 
