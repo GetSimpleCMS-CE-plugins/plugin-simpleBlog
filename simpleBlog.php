@@ -320,10 +320,7 @@ function sb_sanitize_gallery_input($raw){
 }
 
 /**
- * Renders a live "X / recommended" character counter beneath a textarea,
- * turning amber near the limit and red past it. Purely a soft visual guide -
- * does not block typing past the recommended length.
- *
+ * Renders a live "X / recommended" character counter beneath a textarea.
  * @param string $textarea_id  id of the textarea to watch (must already exist in the DOM)
  * @param int    $recommended  recommended max character count
  * @return string HTML (a small counter element + inline script)
@@ -751,8 +748,6 @@ function sb_render_picker_modal($SITEURL){
 
 /**
  * Renders the gallery picker field (hidden input + thumbnail preview + add button)
- * used on both the Add Post and Edit Post admin forms.
- *
  * @param string $initial_gallery_json JSON array of uploads-relative image paths
  * @param string $SITEURL Site base URL
  * @return string HTML
@@ -770,16 +765,18 @@ function sb_gallery_field_html($initial_gallery_json, $SITEURL){
 	$html .= '<p class="sb-gallery-help">' . i18n_r('simpleBlog/GALLERY_HELP') . '</p>';
 	$html .= '</div>';
 
-	$html .= '<style>
+	$html .= '
+	<style>
 		.sb-gallery-preview{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;min-height:4px}
 		.sb-gallery-thumb{position:relative;width:90px;height:90px;border:1px solid #ddd;border-radius:4px;overflow:hidden;background:#f4f4f4}
 		.sb-gallery-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-		.sb-gallery-thumb .sb-gallery-remove{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:18px;font-size:13px;cursor:pointer;padding:0}
+		.sb-gallery-thumb .sb-gallery-remove{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65); color:#fff;border:none;border-radius:50%;width:20px;height:20px;line-height:18px; font-size:13px;cursor:pointer;padding:0}
 		.sb-gallery-thumb .sb-gallery-remove:hover{background:#c0392b}
 		.sb-gallery-help{font-size:.8em;color:#777;margin:4px 0 0}
 	</style>';
 
-	$html .= '<script>
+	$html .= '
+	<script>
 	(function(){
 		var sbGalleryImages = [];
 		try {
@@ -839,9 +836,7 @@ function sb_gallery_field_html($initial_gallery_json, $SITEURL){
 }
 
 /**
- * Renders the front-end gallery grid for a single post, using GLightbox
- * (bundled under plugins/simpleBlog/assets/glightbox/) for the lightbox.
- *
+ * Renders the front-end gallery grid for a single post, using GLightbox.
  * @param string $gallery_json JSON array of uploads-relative image paths
  * @param string $SITEURL Site base URL
  * @param int    $post_id Post ID, used to scope the GLightbox instance to this gallery
@@ -865,10 +860,11 @@ function sb_render_public_gallery($gallery_json, $SITEURL, $post_id, $alt_title 
 	}
 	$html .= '</div>';
 
-	$html .= '<style>
+	$html .= '
+	<style>
 		.sb-post-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:16px 0}
 		.sb-post-gallery-item{display:block;border:1px solid #ccc;border-radius:6px;overflow:hidden;line-height:0}
-		.sb-post-gallery-item img{width:100%;height:140px;object-fit:cover;display:block;transition:transform .15s; margin:0!important}
+		.sb-post-gallery-item img{width:100%;height:140px;object-fit:cover; display:block;transition:transform .15s; margin:0!important}
 		.sb-post-gallery-item:hover img{transform:scale(1.04)}
 	</style>';
 
@@ -1160,9 +1156,9 @@ function blog_admin(){
 			}
 			}).render("#donate-button");
 		</script>
-		<b>Buy me a small coffe!</b>
+		<b>Buy me a small coffee!</b>
 	</div>
-';
+	';
 
 	global $thisfile;
 	blog_init_db();
@@ -1173,52 +1169,40 @@ function blog_admin(){
 		.blog-admin-container { width:90%; margin: 20px auto; font-family: Arial, sans-serif; }
 		.blog-admin-container h3 { color: #333; border-bottom: 2px solid #0073aa; padding-bottom: 10px; }
 		.blog-admin-container h4 { color: #000; margin: 20px 0; font-size:1.3rem; display:block; }
+		
 		.blog-form { background: #fafafa; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border:solid 1px #ddd }
 		.blog-form label { display: block; margin-bottom: 5px; font-weight: bold; }
-		.blog-form input[type="text"], .blog-form input[type="email"], .blog-form textarea, .blog-form select {
-			width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;
-		}
+		.blog-form input[type="text"], .blog-form input[type="email"], .blog-form textarea, .blog-form select {width: 100%; padding: 8px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;}
 		.blog-form input[type="file"] { margin-bottom: 15px; }
 		.blog-form input[type="submit"] { background: #0073aa; color: #fff; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
 		.blog-form input[type="submit"]:hover { background: #005177; }
+		
 		.post-list, .category-list { margin-top: 20px; }
+		
 		.post-item, .category-item { background: #fff; padding: 15px; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}
 		.post-item a, .category-item a { color: #0073aa; text-decoration: none; margin-left: 10px; }
+		.post-item,.category-item {display: grid; grid-template-columns: 1fr 50px; align-items: center; justify-content: center; padding:20px; }
 		.post-item a:hover, .category-item a:hover { text-decoration: underline; }
+		
+		.comment-item form { display: inline; }
 		.category-item form, .post-item form { display: inline; }
+		
 		.category-item input[type="submit"], .post-item input[type="submit"] { border-radius: 4px; background: #d63638; color: #fff; padding: 5px 10px; }
 		.category-item input[type="submit"]:hover, .post-item input[type="submit"]:hover { background: #b32d2e; }
+		
 		.comment-item { background: #f9f9f9; padding: 15px; margin-bottom: 10px; border-radius: 5px; }
-		.comment-item form { display: inline; }
-		.notification { background: #e0f7fa; padding: 10px; border-radius: 4px; margin-bottom: 15px; color: #0073aa; }
+		.comment-item {display:grid; grid-template-columns: 1fr 80px 80px; }
+		.comment-item p {margin:0; }
+		.post-item a {text-decoration:none !important; color:rgba(0,0,0,0.5	) !important;}
+		.post-item p {margin:0; }
+		
 		.help-section { margin-top: 30px; padding: 15px; background: #f9f9f9; border-radius: 5px; border: 1px solid #ddd; }
 		.help-section h5 { margin-top: 0; color: #333; }
 		.help-section pre { background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 4px; overflow-x: auto; }
-
-		.post-item,.category-item{
-			display: grid;
-			grid-template-columns: 1fr 50px;
-			align-items: center;
-			justify-content: center;
-			padding:20px;
-		}
-		.comment-item{
-			display:grid;
-			grid-template-columns: 1fr 80px 80px;
-		}
-		.comment-item p{
-			margin:0;
-		}
-		.post-item p{
-			margin:0;
-		}
-		.category-item p{
-			margin:0;
-		}
-		.post-item a{
-			text-decoration:none !important;
-			color:rgba(0,0,0,0.5	) !important;
-		}
+		
+		.category-item p {margin:0; }
+		
+		.notification { background: #e0f7fa; padding: 10px; border-radius: 4px; margin-bottom: 15px; color: #0073aa; }
 	</style>';
 
 	echo '<div class="blog-admin-container">';
@@ -1610,18 +1594,8 @@ function blog_admin(){
 
 		echo '
 		<style>
-			pre{
-				background: #fff;
-				padding: 10px;
-				border: 1px solid #ddd;
-				border-radius: 4px;
-				overflow-x: auto;
-				margin:10px 0;
-			}
-			p{
-				margin:0 !important;
-				padding:0 !important;
-			}
+			pre {background: #fff;padding: 10px;border: 1px solid #ddd;border-radius: 4px;overflow-x: auto;margin:10px 0;}
+			p {margin:0 !important;padding:0 !important;}
 		</style>';
 
 		echo '<h4>' . i18n_r('simpleBlog/SNIPPET') . '</h4>';
@@ -1735,8 +1709,8 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 			</div>';
 			}
 			break;
-
-		case 'tags':
+			
+			case 'tags':
 			echo '<h4>Manage Tags</h4>';
 			echo '<div class="blog-form">';
 			echo '<form method="post">';
@@ -1792,26 +1766,13 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 
 			echo '
 			<style>
-				.addPhoto{
-					background:#0073AA!important;
-					color:#fff;
-					border-radius:5px !important;
-					border:none;
-					padding:10px;
-					margin-bottom:10px;
-				}
-				.addPhoto:hover{
-					background:#006290;
-				}
-				.cur_photo{
-					display:block;
-					margin:10px 0;
-				}
-				.datetime{
-					padding:5px 8px;
-					border-radius:5px;
-				}
-				.sb-field-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
+				.addPhoto {background:#0073AA!important; color:#fff; border-radius:5px !important; border:none; padding:10px; margin-bottom:10px;}
+				.addPhoto:hover {background:#006290;}
+				.cur_photo {display:block; margin:10px 0;}
+				
+				.datetime {padding:5px 8px; border-radius:5px; }
+				
+				.sb-field-row {display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
 				.sb-field-row > div{flex:1;min-width:200px}
 				.sb-field-row label{display:block;margin-bottom:4px}
 				.sb-field-row input[type="text"],.sb-field-row input.datetime,.sb-field-row select{width:100%;box-sizing:border-box}
@@ -1966,24 +1927,12 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 
 			echo '
 			<style>
-				.addPhoto{
-					background:#0073AA;
-					color:#fff;
-					border-radius:5px !important;
-					border:none;
-					padding:10px;
-				}
-				.addPhoto:hover{
-					background:#006290;
-				}
-				.cur_photo{
-					display:block;
-					margin:10px 0;
-				}
-				.datetime{
-					padding:5px 8px;
-					border-radius:5px;
-				}
+				.addPhoto{background:#0073AA; color:#fff; border-radius:5px !important; border:none; padding:10px;}
+				.addPhoto:hover{background:#006290;}
+				.cur_photo{display:block;margin:10px 0;}
+				
+				.datetime{padding:5px 8px;border-radius:5px;}
+				
 				.sb-field-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
 				.sb-field-row > div{flex:1;min-width:200px}
 				.sb-field-row label{display:block;margin-bottom:4px}
@@ -2168,24 +2117,9 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 
 			echo '
 			<style>
-				.comment-item{
-					display:flex;
-					align-items:center;
-					justify-content:space-between;
-				}
-				.comment-item .aprove{
-					background:green;
-					border:none;
-					border-radius:5px !important;
-					padding:5px;
-				}
-
-				.comment-item .delete{
-					background:red;
-					border:none;
-					border-radius:5px !important;
-					padding:5px;
-				}
+				.comment-item {display:flex; align-items:center; justify-content:space-between;}
+				.comment-item .aprove {background:green; border:none; border-radius:5px !important; padding:5px;}
+				.comment-item .delete {background:red; border:none; border-radius:5px !important; padding:5px;}
 			</style>
 			';
 			
@@ -2238,48 +2172,17 @@ RewriteRule ^index/category/([A-Za-z0-9-]+)/?$ index.php?id=index&category=$1 [L
 			
 			echo '
 			<style>
-				.post-item {
-					display: flex;
-					flex-direction: row;
-					align-items: center;
-					justify-content: space-between;
-					font-size:.85rem;
-				}
-				.post-item button {
-					background: red;
-					color: #fff;
-					border: none;
-					border-radius: 5px !important;
-				}
-				.btn-row {
-					display: flex;
-					align-items: center;
-					justify-content: space-between;
-					gap: 10px;
-				}
-				.pagination {
-					margin: 20px 0;
-					display: flex;
-					gap: 5px;
-					justify-content: center;
-				}
-				.pagination a {
-					padding: 5px 10px;
-					text-decoration: none;
-					border: 1px solid #ddd;
-					border-radius: 3px;
-					text-decoration:none !important;
-				}
-				.pagination a.active {
-					background: #007bff;
-					color: white;
-				}
-				.search-container {
-					margin-bottom: 20px;
-				}
-				#searchInput {
-					width:100%;padding:10px !important;box-sizing:border-box;
-				}
+				.post-item {display: flex; flex-direction: row; align-items: center; justify-content: space-between; font-size:.85rem;}
+				.post-item button {background: red; color: #fff; border: none; border-radius: 5px !important;}
+				.btn-row {display: flex; align-items: center; justify-content: space-between; gap: 10px;}
+				
+				.pagination {margin: 20px 0; display: flex; gap: 5px; justify-content: center;}
+				.pagination a {padding: 5px 10px; text-decoration: none; border: 1px solid #ddd; border-radius: 3px; text-decoration:none !important;}
+				.pagination a.active {background: #007bff;color: white;}
+				
+				.search-container {margin-bottom: 20px;}
+				#searchInput {width:100%;padding:10px !important;box-sizing:border-box;}
+				
 				.sb-pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:600;line-height:1.7;white-space:nowrap;vertical-align:middle}
 				.sb-pill-published{background:#dcfce7;color:#15803d}
 				.sb-pill-draft{background:#f3f4f6;color:#4b5563}
