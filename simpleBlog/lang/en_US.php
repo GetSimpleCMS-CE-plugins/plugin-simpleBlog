@@ -52,6 +52,11 @@ $i18n = [
 	'POSTS_PER_PAGE' => 'Posts Per Page',
 	'SAVE_SETTINGS' => 'Save Settings',
 	'SHOW_COMMENTS' => 'Show Comments',
+	'ENABLE_RSS' => 'Enable RSS Feed',
+	'RSS_POST_COUNT' => 'Posts in RSS Feed',
+	'RSS_FEED_URL' => 'RSS Feed',
+	'RSS_FEED_HELP' => 'Point a feed reader at this URL to subscribe to new posts. It updates automatically whenever a post is published, edited, or deleted.',
+	'RSS_DISABLED_HELP' => 'RSS is currently disabled. Enable it above and save to generate rss.xml.',
 	'PARENT_PAGE' => 'Parent Page:',
 
 	// How to Use

@@ -52,6 +52,11 @@ $i18n = [
 	'POSTS_PER_PAGE' => 'Beiträge pro Seite',
 	'SAVE_SETTINGS' => 'Einstellungen speichern',
 	'SHOW_COMMENTS' => 'Kommentare anzeigen',
+	'ENABLE_RSS' => 'RSS-Feed aktivieren',
+	'RSS_POST_COUNT' => 'Beiträge im RSS-Feed',
+	'RSS_FEED_URL' => 'RSS-Feed',
+	'RSS_FEED_HELP' => 'Diese URL in einem Feedreader abonnieren, um neue Beiträge zu erhalten. Aktualisiert sich automatisch, sobald ein Beitrag veröffentlicht, bearbeitet oder gelöscht wird.',
+	'RSS_DISABLED_HELP' => 'RSS ist derzeit deaktiviert. Oben aktivieren und speichern, um rss.xml zu erzeugen.',
 	'PARENT_PAGE' => 'Übergeordnete Seite:',
 
 	// How to Use

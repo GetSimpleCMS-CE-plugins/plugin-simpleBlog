@@ -6,7 +6,7 @@ i18n_merge('simpleBlog') || i18n_merge('simpleBlog', 'en_US');
 register_plugin(
 	$thisfile,
 	'SimpleBlog',
-	'3.4',
+	'3.5',
 	'Multicolor',
 	'http://ko-fi.com/multicolorplugins',
 	'SimpleBlog for Simple CMS! Based on Sqlite3',
@@ -43,8 +43,16 @@ function styleTheme(){
 		$result = $checkStyle->execute();
 		$style = $result->fetchArray(SQLITE3_ASSOC);
 
-		global $SITEURL;
-		echo '<link rel="stylesheet" href="' . $SITEURL . 'plugins/simpleBlog/css/' . $style['value'] . '.css?v=' . rand() . '">';
+		global $SITEURL, $SITENAME;
+		echo '
+	<link rel="stylesheet" href="' . $SITEURL . 'plugins/simpleBlog/css/' . $style['value'] . '.css?v=' . rand() . '">';
+
+		if (get_setting($db, 'enable_rss') !== '0') {
+			$feed_title = htmlspecialchars(($SITENAME ?: 'Blog') . ' RSS Feed', ENT_QUOTES, 'UTF-8');
+			echo '
+	<link rel="alternate" type="application/rss+xml" title="' . $feed_title . '" href="' . $SITEURL . 'rss.xml">
+';
+		}
 	};
 }
 
@@ -137,6 +145,16 @@ function blog_init_db(){
 	if (!file_exists($cover_folder)) {
 
 		mkdir($cover_folder, 0755, true);
+	}
+
+	// If rss.xml doesn't exist yet (fresh install/upgrade), generate it now
+	if (!file_exists(GSROOTPATH . 'rss.xml')) {
+		global $SITEURL;
+		$rss_db = new SQLite3($db_file);
+		if (get_setting($rss_db, 'enable_rss') !== '0') {
+			sb_write_rss_file($rss_db, $SITEURL);
+		}
+		$rss_db->close();
 	}
 }
 
@@ -944,8 +962,93 @@ function sb_render_public_gallery($gallery_json, $SITEURL, $post_id, $alt_title 
 
 // sitemap
 add_action('sitemap-aftersave', 'get_sb_sitemap');
+
+/**
+ * Builds the RSS 2.0 XML for the blog's most recent visible posts.
+ *
+ * @param SQLite3 $db
+ * @param string $SITEURL
+ * @return string
+ */
+function sb_generate_rss_xml($db, $SITEURL) {
+	global $SITENAME;
+
+	$use_slug_routing = get_setting($db, 'use_slug_routing') === '1';
+	$root_page = get_setting($db, 'root_page');
+	$limit = (int)get_setting($db, 'rss_post_count');
+	if ($limit < 1) $limit = 20;
+
+	// Same "visible posts" rule used by the main blog listing: published, or
+	// a draft whose scheduled date has already passed.
+	$stmt = $db->prepare("SELECT p.*, c.name as category_name FROM posts p LEFT JOIN categories c ON p.category_id = c.id WHERE (p.published = 1 OR (p.published = 0 AND p.scheduled_date IS NOT NULL AND p.scheduled_date <= ?)) ORDER BY p.date DESC LIMIT ?");
+	$stmt->bindValue(1, time(), SQLITE3_INTEGER);
+	$stmt->bindValue(2, $limit, SQLITE3_INTEGER);
+	$result = $stmt->execute();
+
+	$feed_title = htmlspecialchars($SITENAME ?: 'Blog', ENT_QUOTES, 'UTF-8');
+	$feed_link  = htmlspecialchars($SITEURL, ENT_QUOTES, 'UTF-8');
+	$feed_self  = htmlspecialchars($SITEURL . 'rss.xml', ENT_QUOTES, 'UTF-8');
+
+	$items = '';
+	while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+		if ($use_slug_routing) {
+			$post_url = $SITEURL . $root_page . '/' . $row['slug'];
+		} else {
+			$post_url = $SITEURL . 'index.php?id=' . $root_page . '&post=' . $row['slug'];
+		}
+		$link = htmlspecialchars($post_url, ENT_QUOTES, 'UTF-8');
+
+		// Prefer the post's own excerpt field; fall back to a stripped,
+		// truncated snippet of the full content via GS's own getExcerpt().
+		$desc_source = !empty($row['description']) ? $row['description'] : getExcerpt($row['content'], 300);
+		$desc_source = str_replace(']]>', ']]&gt;', strip_tags($desc_source)); // CDATA can't contain a literal "]]>"
+
+		$items .= "\t<item>\n";
+		$items .= "\t\t<title>" . htmlspecialchars($row['title'], ENT_QUOTES, 'UTF-8') . "</title>\n";
+		$items .= "\t\t<link>{$link}</link>\n";
+		$items .= "\t\t<guid isPermaLink=\"true\">{$link}</guid>\n";
+		$items .= "\t\t<pubDate>" . date(DATE_RSS, $row['date']) . "</pubDate>\n";
+		$items .= "\t\t<description><![CDATA[{$desc_source}]]></description>\n";
+		if (!empty($row['category_name'])) {
+			$items .= "\t\t<category>" . htmlspecialchars($row['category_name'], ENT_QUOTES, 'UTF-8') . "</category>\n";
+		}
+		$items .= "\t</item>\n";
+	}
+
+	$xml  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+	$xml .= '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">' . "\n";
+	$xml .= "<channel>\n";
+	$xml .= "\t<title>{$feed_title}</title>\n";
+	$xml .= "\t<link>{$feed_link}</link>\n";
+	$xml .= "\t<atom:link href=\"{$feed_self}\" rel=\"self\" type=\"application/rss+xml\" />\n";
+	$xml .= "\t<description>" . $feed_title . ' RSS Feed' . "</description>\n";
+	$xml .= "\t<lastBuildDate>" . date(DATE_RSS) . "</lastBuildDate>\n";
+	$xml .= $items;
+	$xml .= "</channel>\n";
+	$xml .= "</rss>\n";
+
+	return $xml;
+}
+
+/**
+ * Writes (or removes) rss.xml at the site root, based on the current
+ * enable_rss setting. Call this anywhere a post or the setting changes.
+ *
+ * @param SQLite3 $db
+ * @param string $SITEURL
+ */
+function sb_write_rss_file($db, $SITEURL) {
+	$file = GSROOTPATH . 'rss.xml';
+	// Enabled unless explicitly turned off, so the feed works immediately on
+	// upgrade without requiring a settings visit first.
+	if (get_setting($db, 'enable_rss') === '0') {
+		if (file_exists($file)) @unlink($file);
+		return;
+	}
+	@file_put_contents($file, sb_generate_rss_xml($db, $SITEURL));
+}
+
 function get_sb_sitemap(){
-	// Inicjalizacja zmiennych i połączenie z bazą danych
 	$db = new SQLite3(GSDATAOTHERPATH . 'blog.db');
 	global $SITEURL;
 
@@ -1352,6 +1455,8 @@ function blog_admin(){
 				}
 
 				get_sb_sitemap();
+				global $SITEURL;
+				sb_write_rss_file($db, $SITEURL);
 
 				echo "<meta http-equiv='refresh' content='0;url=load.php?id=simpleBlog&blog_admin&tab=edit_post&post_id=" . $post_id . "&successpostcreated'>";
 
@@ -1479,6 +1584,8 @@ function blog_admin(){
 					// Commit transaction
 					$db->exec('COMMIT');
 					get_sb_sitemap();
+					global $SITEURL;
+					sb_write_rss_file($db, $SITEURL);
 					$notification = function_exists('i18n_r') ? i18n_r('simpleBlog/POST_UPDATED') : 'Post updated successfully.';
 					echo '<div class="notification">' . htmlspecialchars($notification) . '</div>';
 				} catch (Exception $e) {
@@ -1506,6 +1613,8 @@ function blog_admin(){
 				echo '<div class="notification">' . i18n_r('simpleBlog/POST_DELETED') . '</div>';
 
 				get_sb_sitemap();
+				global $SITEURL;
+				sb_write_rss_file($db, $SITEURL);
 				break;
 
 			case 'add_category':
@@ -1629,7 +1738,17 @@ function blog_admin(){
 				$stmt->bindValue(1, $_POST['style_theme'] ?? 0, SQLITE3_TEXT);
 				$stmt->execute();
 
+				$stmt = $db->prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('enable_rss', ?)");
+				$stmt->bindValue(1, isset($_POST['enable_rss']) ? '1' : '0', SQLITE3_TEXT);
+				$stmt->execute();
+
+				$stmt = $db->prepare("INSERT OR REPLACE INTO settings (name, value) VALUES ('rss_post_count', ?)");
+				$stmt->bindValue(1, (int)($_POST['rss_post_count'] ?? 20) ?: 20, SQLITE3_INTEGER);
+				$stmt->execute();
+
 				get_sb_sitemap();
+				global $SITEURL;
+				sb_write_rss_file($db, $SITEURL);
 				echo '<div class="notification">' . i18n_r('simpleBlog/SETTINGS_SAVED') . '</div>';
 				break;
 		}
@@ -1676,6 +1795,8 @@ function blog_admin(){
 		echo '<label><input type="checkbox" name="disable_captcha" value="1" ' . (get_setting($db, 'disable_captcha') === '1' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/DISABLE_CAPTCHA') . '</label><br>';
 		echo '<label><input type="checkbox" name="use_slug_routing" value="1" ' . (get_setting($db, 'use_slug_routing') === '1' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/USE_SLUG_ROUTING') . '</label><br>';
 		echo '<label><input type="checkbox" name="show_comments" value="1" ' . (get_setting($db, 'show_comments') === '1' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/SHOW_COMMENTS') . '</label><br>';
+		echo '<label><input type="checkbox" name="enable_rss" value="1" ' . (get_setting($db, 'enable_rss') !== '0' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/ENABLE_RSS') . '</label><br>';
+		echo '<label>' . i18n_r('simpleBlog/RSS_POST_COUNT') . ':</label><input type="number" style="width:100%;padding:10px;border:solid 1px #ddd;border-radius:5px;margin-bottom:10px;" name="rss_post_count" value="' . htmlspecialchars(get_setting($db, 'rss_post_count') ?: 20) . '" min="1" max="100"><br>';
 
 		echo '<label>Style</label><select name="style_theme">';
 
@@ -1702,6 +1823,33 @@ function blog_admin(){
 		echo '<input type="submit" style="background:#00AA2C; margin-top:30px" value="' . i18n_r('simpleBlog/SAVE_SETTINGS') . '">';
 
 		echo '</form>';
+		echo '</div>';
+
+		echo '<div class="help-section">';
+		echo '<h5>' . i18n_r('simpleBlog/RSS_FEED_URL') . '</h5>';
+		global $SITEURL;
+		if (get_setting($db, 'enable_rss') !== '0') {
+			$rss_url = $SITEURL . 'rss.xml';
+			echo '<input type="text" readonly value="' . htmlspecialchars($rss_url, ENT_QUOTES, 'UTF-8') . '" onclick="this.select()" style="width:100%;padding:10px;border:solid 1px #ddd;border-radius:5px;box-sizing:border-box;">';
+			echo '<p style="font-size:.85rem;color:#777;margin:8px 0 0">' . i18n_r('simpleBlog/RSS_FEED_HELP') . '</p>';
+			echo '<p style="font-size:.85rem;color:#777;margin:8px 0 0">In <code class="cke">.htaccess</code>, right before the line <code class="tpl">&lt;Files sitemap.xml></code>, add:</p>';
+			echo '<pre class="cke">
+&lt;Files rss.xml>
+	&lt;IfModule !mod_authz_core.c>
+		Allow from all
+	&lt;/IfModule>
+	&lt;IfModule mod_access_compat.c>
+		Allow from all
+	&lt;/IfModule>
+	&lt;IfModule mod_authz_core.c>
+		&lt;IfModule !mod_access_compat.c>
+			Require all granted
+		&lt;/IfModule>
+	&lt;/IfModule>	
+&lt;/Files></pre>';
+		} else {
+			echo '<p style="font-size:.9rem;color:#777">' . i18n_r('simpleBlog/RSS_DISABLED_HELP') . '</p>';
+		}
 		echo '</div>';
 
 		echo '<div class="help-section">';

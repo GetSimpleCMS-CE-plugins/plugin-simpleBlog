@@ -52,6 +52,11 @@ $i18n = [
 	'POSTS_PER_PAGE' => 'Postów na stronę',
 	'SAVE_SETTINGS' => 'Zapisz ustawienia',
 	'SHOW_COMMENTS' => 'Pokaż komentarze',
+	'ENABLE_RSS' => 'Włącz kanał RSS',
+	'RSS_POST_COUNT' => 'Liczba wpisów w kanale RSS',
+	'RSS_FEED_URL' => 'Kanał RSS',
+	'RSS_FEED_HELP' => 'Wskaż ten adres URL w czytniku kanałów, aby subskrybować nowe wpisy. Aktualizuje się automatycznie po opublikowaniu, edycji lub usunięciu wpisu.',
+	'RSS_DISABLED_HELP' => 'RSS jest obecnie wyłączony. Włącz powyżej i zapisz, aby wygenerować rss.xml.',
 	'PARENT_PAGE' => 'Strona nadrzędna:',
 
 	// How to Use

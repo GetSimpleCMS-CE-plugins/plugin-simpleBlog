@@ -52,6 +52,11 @@ $i18n = [
 	'POSTS_PER_PAGE' => 'Publicaciones por página',
 	'SAVE_SETTINGS' => 'Guardar configuraciones',
 	'SHOW_COMMENTS' => 'Mostrar comentarios',
+	'ENABLE_RSS' => 'Activar feed RSS',
+	'RSS_POST_COUNT' => 'Entradas en el feed RSS',
+	'RSS_FEED_URL' => 'Feed RSS',
+	'RSS_FEED_HELP' => 'Apunta un lector de feeds a esta URL para suscribirte a las nuevas entradas. Se actualiza automáticamente al publicar, editar o eliminar una entrada.',
+	'RSS_DISABLED_HELP' => 'El RSS está desactivado actualmente. Actívalo arriba y guarda para generar rss.xml.',
 	'PARENT_PAGE' => 'Página principal:',
 
 	// How to Use
