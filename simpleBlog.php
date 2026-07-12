@@ -47,7 +47,7 @@ function styleTheme(){
 		echo '
 	<link rel="stylesheet" href="' . $SITEURL . 'plugins/simpleBlog/css/' . $style['value'] . '.css?v=' . rand() . '">';
 
-		if (get_setting($db, 'enable_rss') !== '0') {
+		if (get_setting($db, 'enable_rss') === '1') {
 			$feed_title = htmlspecialchars(($SITENAME ?: 'Blog') . ' RSS Feed', ENT_QUOTES, 'UTF-8');
 			echo '
 	<link rel="alternate" type="application/rss+xml" title="' . $feed_title . '" href="' . $SITEURL . 'rss.xml">
@@ -151,7 +151,7 @@ function blog_init_db(){
 	if (!file_exists(GSROOTPATH . 'rss.xml')) {
 		global $SITEURL;
 		$rss_db = new SQLite3($db_file);
-		if (get_setting($rss_db, 'enable_rss') !== '0') {
+		if (get_setting($rss_db, 'enable_rss') === '1') {
 			sb_write_rss_file($rss_db, $SITEURL);
 		}
 		$rss_db->close();
@@ -1041,7 +1041,7 @@ function sb_write_rss_file($db, $SITEURL) {
 	$file = GSROOTPATH . 'rss.xml';
 	// Enabled unless explicitly turned off, so the feed works immediately on
 	// upgrade without requiring a settings visit first.
-	if (get_setting($db, 'enable_rss') === '0') {
+	if (get_setting($db, 'enable_rss') !== '1') {
 		if (file_exists($file)) @unlink($file);
 		return;
 	}
@@ -1795,7 +1795,7 @@ function blog_admin(){
 		echo '<label><input type="checkbox" name="disable_captcha" value="1" ' . (get_setting($db, 'disable_captcha') === '1' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/DISABLE_CAPTCHA') . '</label><br>';
 		echo '<label><input type="checkbox" name="use_slug_routing" value="1" ' . (get_setting($db, 'use_slug_routing') === '1' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/USE_SLUG_ROUTING') . '</label><br>';
 		echo '<label><input type="checkbox" name="show_comments" value="1" ' . (get_setting($db, 'show_comments') === '1' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/SHOW_COMMENTS') . '</label><br>';
-		echo '<label><input type="checkbox" name="enable_rss" value="1" ' . (get_setting($db, 'enable_rss') !== '0' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/ENABLE_RSS') . '</label><br>';
+		echo '<label><input type="checkbox" name="enable_rss" value="1" ' . (get_setting($db, 'enable_rss') === '1' ? 'checked' : '') . '> ' . i18n_r('simpleBlog/ENABLE_RSS') . '</label><br>';
 		echo '<label>' . i18n_r('simpleBlog/RSS_POST_COUNT') . ':</label><input type="number" style="width:100%;padding:10px;border:solid 1px #ddd;border-radius:5px;margin-bottom:10px;" name="rss_post_count" value="' . htmlspecialchars(get_setting($db, 'rss_post_count') ?: 20) . '" min="1" max="100"><br>';
 
 		echo '<label>Style</label><select name="style_theme">';
@@ -1828,7 +1828,7 @@ function blog_admin(){
 		echo '<div class="help-section">';
 		echo '<h5>' . i18n_r('simpleBlog/RSS_FEED_URL') . '</h5>';
 		global $SITEURL;
-		if (get_setting($db, 'enable_rss') !== '0') {
+		if (get_setting($db, 'enable_rss') === '1') {
 			$rss_url = $SITEURL . 'rss.xml';
 			echo '<input type="text" readonly value="' . htmlspecialchars($rss_url, ENT_QUOTES, 'UTF-8') . '" onclick="this.select()" style="width:100%;padding:10px;border:solid 1px #ddd;border-radius:5px;box-sizing:border-box;">';
 			echo '<p style="font-size:.85rem;color:#777;margin:8px 0 0">' . i18n_r('simpleBlog/RSS_FEED_HELP') . '</p>';
